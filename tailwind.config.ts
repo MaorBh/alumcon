@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        heebo: ["Heebo", "sans-serif"],
+        inter: ["Inter", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +61,24 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        status: {
+          pending: "hsl(var(--status-pending))",
+          "pending-fg": "hsl(var(--status-pending-foreground))",
+          progress: "hsl(var(--status-in-progress))",
+          "progress-fg": "hsl(var(--status-in-progress-foreground))",
+          completed: "hsl(var(--status-completed))",
+          "completed-fg": "hsl(var(--status-completed-foreground))",
+          rejected: "hsl(var(--status-rejected))",
+          "rejected-fg": "hsl(var(--status-rejected-foreground))",
+        },
+        station: {
+          cnc: "hsl(var(--station-cnc))",
+          frames: "hsl(var(--station-frames))",
+          glazing: "hsl(var(--station-glazing))",
+          finishes: "hsl(var(--station-finishes))",
+          windows: "hsl(var(--station-windows))",
+          vitrines: "hsl(var(--station-vitrines))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,25 +87,22 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "0.4" },
+          "50%": { opacity: "1" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
     },
   },
