@@ -11,6 +11,26 @@ const statusToColor: Record<ItemStatus, string> = {
   rejected: "hsl(var(--status-rejected))",
 };
 
+type QcStatus = "not_checked" | "approved" | "failed";
+
+const qcToColor: Record<QcStatus, string> = {
+  not_checked: "hsl(var(--muted))",
+  approved: "hsl(var(--status-completed))",
+  failed: "hsl(var(--status-rejected))",
+};
+
+const qcLabel: Record<QcStatus, string> = {
+  not_checked: "טרם נבדק",
+  approved: "אושר QC",
+  failed: "נכשל QC",
+};
+
+function getQcStatus(item: { qcApproved: boolean; status: ItemStatus; stationHistory: { result: string }[] }): QcStatus {
+  if (item.qcApproved) return "approved";
+  if (item.stationHistory.some(h => h.result === "fail")) return "failed";
+  return "not_checked";
+}
+
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const project = PROJECTS.find(p => p.id === id);
@@ -78,16 +98,29 @@ export default function ProjectDetail() {
             </div>
 
             {/* Legend */}
-            <div className="flex gap-4 mb-4 flex-wrap">
-              {(["pending", "in_progress", "completed", "rejected"] as ItemStatus[]).map(status => (
-                <div key={status} className="flex items-center gap-1.5">
-                  <div
-                    className="w-3 h-3 rounded-sm"
-                    style={{ backgroundColor: statusToColor[status] }}
-                  />
-                  <StatusBadge status={status} />
+            <div className="flex gap-6 mb-4 flex-wrap">
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">סטטוס ייצור (עליון)</p>
+                <div className="flex gap-3">
+                  {(["pending", "in_progress", "completed", "rejected"] as ItemStatus[]).map(status => (
+                    <div key={status} className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: statusToColor[status] }} />
+                      <StatusBadge status={status} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">בקרת איכות (תחתון)</p>
+                <div className="flex gap-3">
+                  {(["not_checked", "approved", "failed"] as QcStatus[]).map(qc => (
+                    <div key={qc} className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: qcToColor[qc] }} />
+                      <span className="text-xs text-muted-foreground">{qcLabel[qc]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Grid */}
@@ -109,20 +142,35 @@ export default function ProjectDetail() {
                       <div className="flex gap-0.5 flex-1">
                         {Array.from({ length: maxUnitsPerFloor }, (_, u) => {
                           const item = floorData.find(i => i.unit === u + 1);
+                          const qcStatus = item ? getQcStatus(item) : "not_checked";
                           return (
                             <div
                               key={u}
-                              className="h-6 flex-1 rounded-sm border border-border/30 transition-all duration-200 hover:scale-110 hover:z-10 relative group"
-                              style={{
-                                backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))",
-                                minWidth: "18px",
-                              }}
+                              className="h-10 flex-1 rounded-sm border border-border/30 transition-all duration-200 hover:scale-110 hover:z-10 relative group flex flex-col overflow-hidden"
+                              style={{ minWidth: "22px" }}
                               title={item ? `${item.barcode} - ${item.type}` : "ריק"}
                             >
+                              {/* Top half - Production status */}
+                              <div
+                                className="flex-1"
+                                style={{
+                                  backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))",
+                                }}
+                              />
+                              {/* Divider line */}
+                              <div className="h-px bg-background/40" />
+                              {/* Bottom half - QC status */}
+                              <div
+                                className="flex-1"
+                                style={{
+                                  backgroundColor: item ? qcToColor[qcStatus] : "hsl(var(--muted))",
+                                }}
+                              />
                               {item && (
                                 <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-1 hidden group-hover:block z-20 bg-popover border border-border rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
                                   <p className="font-mono">{item.barcode}</p>
                                   <p>{item.type}</p>
+                                  <p className="text-muted-foreground">QC: {qcLabel[qcStatus]}</p>
                                 </div>
                               )}
                             </div>
