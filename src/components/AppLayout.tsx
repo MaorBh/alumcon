@@ -17,6 +17,7 @@ const navItems = [
   { path: "/projects", label: "פרויקטים", icon: FolderKanban },
   { path: "/items", label: "פריטים", icon: ScanBarcode },
   { path: "/stations", label: "תחנות", icon: Factory },
+  { path: "/settings", label: "הגדרות", icon: Settings },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
