@@ -5,7 +5,7 @@ import ProjectItemsTab from "@/components/ProjectItemsTab";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
 import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, Grid3X3, List, Settings } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const statusToColor: Record<ItemStatus, string> = {
   pending: "hsl(var(--status-pending))",
@@ -84,6 +84,15 @@ export default function ProjectDetail() {
     if (!selectedFloor) return [];
     return sideItems.filter(i => i.floor === selectedFloor);
   }, [sideItems, selectedFloor]);
+
+  useEffect(() => {
+    if (selectedItemId) {
+      const el = document.getElementById(`item-${selectedItemId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [selectedItemId]);
 
   if (!project) {
     return <div className="text-center py-20 text-muted-foreground">פרויקט לא נמצא</div>;
