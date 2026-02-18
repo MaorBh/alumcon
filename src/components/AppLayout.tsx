@@ -13,7 +13,7 @@ import {
 import logo from "@/assets/logo.png";
 
 const navItems = [
-  { path: "/", label: "דשבורד", icon: LayoutDashboard },
+  { path: "/", label: "מבט על", icon: LayoutDashboard },
   { path: "/projects", label: "פרויקטים", icon: FolderKanban },
   { path: "/items", label: "פריטים", icon: ScanBarcode },
   { path: "/stations", label: "תחנות", icon: Factory },

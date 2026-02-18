@@ -1,7 +1,9 @@
 import { useParams, Link } from "react-router-dom";
-import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus } from "@/data/mockData";
+import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus, getStationStats } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
-import { ArrowRight, Building2 } from "lucide-react";
+import KpiCard from "@/components/KpiCard";
+import StationCard from "@/components/StationCard";
+import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, Factory } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const statusToColor: Record<ItemStatus, string> = {
@@ -38,6 +40,32 @@ export default function ProjectDetail() {
   const [activeSide, setActiveSide] = useState("S-South");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
 
+  const totalItems = items.length;
+  const completed = items.filter(i => i.status === "completed").length;
+  const inProgress = items.filter(i => i.status === "in_progress").length;
+  const rejected = items.filter(i => i.status === "rejected").length;
+
+  // Station stats for this project only
+  const projectStationStats = useMemo(() => {
+    return STATIONS.map(s => ({
+      ...s,
+      active: items.filter(i => i.currentStation === s.id && i.status === "in_progress").length,
+      completed: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "pass")).length,
+      rejected: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "fail")).length,
+    }));
+  }, [items]);
+
+  const recentItems = useMemo(() => {
+    return items
+      .filter(i => i.stationHistory.length > 0)
+      .sort((a, b) => {
+        const aLast = a.stationHistory[a.stationHistory.length - 1]?.timestamp || "";
+        const bLast = b.stationHistory[b.stationHistory.length - 1]?.timestamp || "";
+        return bLast.localeCompare(aLast);
+      })
+      .slice(0, 8);
+  }, [items]);
+
   const sideItems = useMemo(() => items.filter(i => i.side === activeSide), [items, activeSide]);
   const floors = project?.floors || [];
   const reversedFloors = [...floors].reverse();
@@ -57,7 +85,7 @@ export default function ProjectDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to="/projects" className="text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowRight className="w-5 h-5" />
         </Link>
         <div>
@@ -66,12 +94,59 @@ export default function ProjectDetail() {
         </div>
       </div>
 
+      {/* Project KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="סה״כ פריטים"
+          value={totalItems.toLocaleString()}
+          icon={Package}
+          accentColor="var(--primary)"
+        />
+        <KpiCard
+          title="הושלמו"
+          value={completed.toLocaleString()}
+          icon={CheckCircle}
+          subtitle={`${totalItems > 0 ? ((completed / totalItems) * 100).toFixed(1) : 0}%`}
+          accentColor="var(--status-completed)"
+        />
+        <KpiCard
+          title="בתהליך"
+          value={inProgress.toLocaleString()}
+          icon={Clock}
+          accentColor="var(--status-in-progress)"
+        />
+        <KpiCard
+          title="נפסלו"
+          value={rejected}
+          icon={AlertTriangle}
+          subtitle="דרוש טיפול"
+          accentColor="var(--status-rejected)"
+        />
+      </div>
+
+      {/* Station status for this project */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-bold">סטטוס תחנות</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {projectStationStats.map(s => (
+            <StationCard
+              key={s.id}
+              name={s.name}
+              stationId={s.id}
+              active={s.active}
+              completed={s.completed}
+              rejected={s.rejected}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Side selector */}
       <div className="flex gap-2 flex-wrap">
         {project.sides.map(side => {
           const sItems = items.filter(i => i.side === side);
-          const completed = sItems.filter(i => i.status === "completed").length;
-          const pct = sItems.length > 0 ? ((completed / sItems.length) * 100).toFixed(0) : "0";
+          const sCompleted = sItems.filter(i => i.status === "completed").length;
+          const pct = sItems.length > 0 ? ((sCompleted / sItems.length) * 100).toFixed(0) : "0";
           return (
             <button
               key={side}
@@ -150,16 +225,13 @@ export default function ProjectDetail() {
                               style={{ minWidth: "22px" }}
                               title={item ? `${item.barcode} - ${item.type}` : "ריק"}
                             >
-                              {/* Top half - Production status */}
                               <div
                                 className="flex-1"
                                 style={{
                                   backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))",
                                 }}
                               />
-                              {/* Divider line */}
                               <div className="h-px bg-background/40" />
-                              {/* Bottom half - QC status */}
                               <div
                                 className="flex-1"
                                 style={{
@@ -210,7 +282,6 @@ export default function ProjectDetail() {
                           תחנה אחרונה: <span className="text-foreground">{stationName}</span>
                         </p>
                       )}
-                      {/* Station progress dots */}
                       <div className="flex gap-1 pt-1">
                         {STATIONS.map(s => {
                           const hist = item.stationHistory.find(h => h.station === s.id);
@@ -240,6 +311,39 @@ export default function ProjectDetail() {
               </p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Recent activity */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold">פעילות אחרונה</h2>
+        <div className="glass-card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-right p-3 text-xs text-muted-foreground font-medium">ברקוד</th>
+                <th className="text-right p-3 text-xs text-muted-foreground font-medium">סוג</th>
+                <th className="text-right p-3 text-xs text-muted-foreground font-medium">תחנה אחרונה</th>
+                <th className="text-right p-3 text-xs text-muted-foreground font-medium">סטטוס</th>
+                <th className="text-right p-3 text-xs text-muted-foreground font-medium">קומה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentItems.map(item => {
+                const lastStation = item.stationHistory[item.stationHistory.length - 1];
+                const stationName = STATIONS.find(s => s.id === lastStation?.station)?.name || "-";
+                return (
+                  <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <td className="p-3 font-inter text-xs font-mono">{item.barcode}</td>
+                    <td className="p-3 text-xs">{item.type}</td>
+                    <td className="p-3 text-xs">{stationName}</td>
+                    <td className="p-3"><StatusBadge status={item.status} /></td>
+                    <td className="p-3 text-xs font-inter">{item.floor}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
