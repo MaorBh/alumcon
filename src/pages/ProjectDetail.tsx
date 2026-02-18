@@ -231,47 +231,36 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
-                <div>
-                  <div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[500px]">
                     {reversedFloors.map(floor => {
                       const floorData = sideItems.filter(i => i.floor === floor);
                       return (
                         <div
                           key={floor}
-                          className={`flex items-center gap-1.5 mb-1.5 cursor-pointer rounded px-1 transition-colors ${
+                          className={`flex items-center gap-1 mb-1 cursor-pointer rounded px-1 transition-colors ${
                             selectedFloor === floor ? "bg-primary/10" : "hover:bg-muted/50"
                           }`}
                           onClick={() => setSelectedFloor(floor)}
                         >
-                          <span className="w-10 text-sm font-inter text-muted-foreground font-mono shrink-0 text-center">{floor}</span>
-                          <div className="flex gap-1 flex-1">
+                          <span className="w-8 text-xs font-inter text-muted-foreground font-mono shrink-0">{floor}</span>
+                          <div className="flex gap-0.5 flex-1">
                             {Array.from({ length: maxUnitsPerFloor }, (_, u) => {
                               const item = floorData.find(i => i.unit === u + 1);
                               const qcStatus = item ? getQcStatus(item) : "not_checked";
                               return (
                                 <div
                                   key={u}
-                                  className="h-14 flex-1 min-w-0 rounded-md border border-border/40 transition-all duration-200 hover:scale-105 hover:z-10 relative group flex flex-col overflow-hidden"
+                                  className="h-10 flex-1 rounded-sm border border-border/30 transition-all duration-200 hover:scale-110 hover:z-10 relative group flex flex-col overflow-hidden"
+                                  style={{ minWidth: "22px" }}
                                   title={item ? `${item.barcode} - ${item.type}` : "ריק"}
                                 >
-                                  <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))" }}>
-                                    {item && (
-                                      <span className="text-[9px] font-mono font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] leading-none text-center px-0.5 truncate">
-                                        {item.barcode}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="h-px bg-background/50" />
-                                  <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: item ? qcToColor[qcStatus] : "hsl(var(--muted))" }}>
-                                    {item && (
-                                      <span className="text-[8px] font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] leading-none">
-                                        {qcStatus === "approved" ? "✓ QC" : qcStatus === "failed" ? "✗ QC" : "—"}
-                                      </span>
-                                    )}
-                                  </div>
+                                  <div className="flex-1" style={{ backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))" }} />
+                                  <div className="h-px bg-background/40" />
+                                  <div className="flex-1" style={{ backgroundColor: item ? qcToColor[qcStatus] : "hsl(var(--muted))" }} />
                                   {item && (
-                                    <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-1 hidden group-hover:block z-20 bg-popover border border-border rounded px-2 py-1.5 text-xs whitespace-nowrap shadow-lg">
-                                      <p className="font-mono font-bold">{item.barcode}</p>
+                                    <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-1 hidden group-hover:block z-20 bg-popover border border-border rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
+                                      <p className="font-mono">{item.barcode}</p>
                                       <p>{item.type}</p>
                                       <p className="text-muted-foreground">QC: {qcLabel[qcStatus]}</p>
                                     </div>
@@ -288,7 +277,7 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            <div className="lg:sticky lg:top-24 self-start">
+            <div>
               <div className="glass-card p-4">
                 <h3 className="font-semibold text-sm mb-3">
                   {selectedFloor ? `קומה ${selectedFloor} - פרטי פריטים` : "לחץ על קומה לפרטים"}
