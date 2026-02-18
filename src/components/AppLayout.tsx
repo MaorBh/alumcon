@@ -10,6 +10,7 @@ import {
   Menu,
   X
 } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const navItems = [
   { path: "/", label: "דשבורד", icon: LayoutDashboard },
@@ -34,9 +35,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           {sidebarOpen && (
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                <Factory className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <img src={logo} alt="Aluminum Construction Group" className="h-8 w-auto" />
               <span className="font-bold text-lg text-sidebar-accent-foreground">אלומקון</span>
             </div>
           )}
