@@ -231,8 +231,8 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <div className="min-w-[500px]">
+                <div>
+                  <div>
                     {reversedFloors.map(floor => {
                       const floorData = sideItems.filter(i => i.floor === floor);
                       return (
@@ -251,8 +251,7 @@ export default function ProjectDetail() {
                               return (
                                 <div
                                   key={u}
-                                  className="h-16 flex-1 rounded-md border border-border/40 transition-all duration-200 hover:scale-105 hover:z-10 relative group flex flex-col overflow-hidden"
-                                  style={{ minWidth: "48px" }}
+                                  className="h-14 flex-1 min-w-0 rounded-md border border-border/40 transition-all duration-200 hover:scale-105 hover:z-10 relative group flex flex-col overflow-hidden"
                                   title={item ? `${item.barcode} - ${item.type}` : "ריק"}
                                 >
                                   <div className="flex-1 flex items-center justify-center" style={{ backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))" }}>
@@ -289,7 +288,7 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            <div>
+            <div className="sticky top-4 self-start">
               <div className="glass-card p-4">
                 <h3 className="font-semibold text-sm mb-3">
                   {selectedFloor ? `קומה ${selectedFloor} - פרטי פריטים` : "לחץ על קומה לפרטים"}
