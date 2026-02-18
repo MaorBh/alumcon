@@ -50,6 +50,7 @@ export default function ProjectDetail() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [activeSide, setActiveSide] = useState("S-South");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const totalItems = items.length;
   const completed = items.filter(i => i.status === "completed").length;
@@ -185,7 +186,7 @@ export default function ProjectDetail() {
               return (
                 <button
                   key={side}
-                  onClick={() => { setActiveSide(side); setSelectedFloor(null); }}
+                  onClick={() => { setActiveSide(side); setSelectedFloor(null); setSelectedItemId(null); }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     activeSide === side
                       ? "bg-primary text-primary-foreground"
@@ -251,9 +252,12 @@ export default function ProjectDetail() {
                               return (
                                 <div
                                   key={u}
-                                  className="h-10 flex-1 rounded-sm border border-border/30 transition-all duration-200 hover:scale-110 hover:z-10 relative group flex flex-col overflow-hidden"
+                                  className={`h-10 flex-1 rounded-sm border transition-all duration-200 hover:scale-110 hover:z-10 relative group flex flex-col overflow-hidden cursor-pointer ${
+                                    item && selectedItemId === item.id ? "border-primary ring-2 ring-primary/50" : "border-border/30"
+                                  }`}
                                   style={{ minWidth: "22px" }}
                                   title={item ? `${item.barcode} - ${item.type}` : "ריק"}
+                                  onClick={(e) => { e.stopPropagation(); if (item) { setSelectedFloor(floor); setSelectedItemId(item.id); } }}
                                 >
                                   <div className="flex-1" style={{ backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))" }} />
                                   <div className="h-px bg-background/40" />
@@ -288,7 +292,9 @@ export default function ProjectDetail() {
                       const lastStation = item.stationHistory[item.stationHistory.length - 1];
                       const stationName = STATIONS.find(s => s.id === lastStation?.station)?.name;
                       return (
-                        <div key={item.id} className="bg-muted/30 rounded-lg p-3 space-y-1.5">
+                        <div key={item.id} id={`item-${item.id}`} className={`rounded-lg p-3 space-y-1.5 transition-all duration-300 ${
+                          selectedItemId === item.id ? "bg-primary/15 ring-1 ring-primary/40" : "bg-muted/30"
+                        }`}>
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-inter">{item.barcode}</span>
                             <StatusBadge status={item.status} />
