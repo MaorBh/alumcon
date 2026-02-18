@@ -1,13 +1,40 @@
-import { PROJECTS, PROJECT_ITEMS } from "@/data/mockData";
+import { useState } from "react";
+import { PROJECTS, PROJECT_ITEMS, addProject } from "@/data/mockData";
 import { Link } from "react-router-dom";
-import { FolderKanban, Calendar, ArrowLeft } from "lucide-react";
+import { FolderKanban, Calendar, ArrowLeft, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import CreateProjectDialog from "@/components/CreateProjectDialog";
 
 export default function Projects() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [, forceUpdate] = useState(0);
+
+  const handleProjectCreated = (data: any) => {
+    addProject({
+      name: data.name,
+      description: data.description,
+      sides: data.sides,
+      floors: Array.from({ length: data.floorTo - data.floorFrom + 1 }, (_, i) => data.floorFrom + i),
+      unitsPerFloor: data.unitsPerFloor,
+    });
+    forceUpdate(n => n + 1);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">כל הפרויקטים</h2>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="w-4 h-4" />
+          פרויקט חדש
+        </Button>
       </div>
+
+      <CreateProjectDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onProjectCreated={handleProjectCreated}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {PROJECTS.map(project => {
