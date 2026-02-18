@@ -119,6 +119,56 @@ PROJECTS.forEach(p => {
   p.completedItems = items.filter(i => i.status === 'completed').length;
 });
 
+export function addProject(config: {
+  name: string;
+  description: string;
+  sides: string[];
+  floors: number[];
+  unitsPerFloor: Record<string, number>;
+}) {
+  const id = config.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36);
+  const project: Project = {
+    id,
+    name: config.name,
+    description: config.description,
+    createdAt: new Date().toISOString().split('T')[0],
+    status: 'active',
+    totalItems: 0,
+    completedItems: 0,
+    sides: config.sides,
+    floors: config.floors,
+  };
+
+  // Generate empty items for the project
+  const items: ProjectItem[] = [];
+  let idx = 0;
+  for (const side of config.sides) {
+    const units = config.unitsPerFloor[side] || 1;
+    for (const floor of config.floors) {
+      for (let unit = 1; unit <= units; unit++) {
+        idx++;
+        items.push({
+          id: `${id}-${idx}`,
+          barcode: `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx).padStart(5, '0')}`,
+          type: 'חלון',
+          floor,
+          unit,
+          side,
+          status: 'pending',
+          currentStation: null,
+          stationHistory: [],
+          qcApproved: false,
+        });
+      }
+    }
+  }
+
+  project.totalItems = items.length;
+  PROJECT_ITEMS[id] = items;
+  PROJECTS.push(project);
+  return project;
+}
+
 export function getStationStats() {
   const allItems = Object.values(PROJECT_ITEMS).flat();
   return STATIONS.map(s => ({
