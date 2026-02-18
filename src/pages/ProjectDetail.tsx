@@ -1,6 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
+import ProjectItemsTab from "@/components/ProjectItemsTab";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
 import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, Grid3X3, List, Settings } from "lucide-react";
@@ -327,55 +328,7 @@ export default function ProjectDetail() {
       )}
 
       {activeTab === "items" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{totalItems} פריטים בפרויקט</p>
-          </div>
-          <div className="glass-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">ברקוד</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">סוג</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">חזית</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">קומה</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">יחידה</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">תחנה נוכחית</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">סטטוס</th>
-                  <th className="text-right p-3 text-xs text-muted-foreground font-medium">QC</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.slice(0, 50).map(item => {
-                  const currentStationName = STATIONS.find(s => s.id === item.currentStation)?.name || "-";
-                  const qcStatus = getQcStatus(item);
-                  return (
-                    <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                      <td className="p-3 font-inter text-xs font-mono">{item.barcode}</td>
-                      <td className="p-3 text-xs">{item.type}</td>
-                      <td className="p-3 text-xs">{item.side}</td>
-                      <td className="p-3 text-xs font-inter">{item.floor}</td>
-                      <td className="p-3 text-xs font-inter">{item.unit}</td>
-                      <td className="p-3 text-xs">{currentStationName}</td>
-                      <td className="p-3"><StatusBadge status={item.status} /></td>
-                      <td className="p-3">
-                        <span className={`text-xs font-medium ${
-                          qcStatus === "approved" ? "text-status-completed" :
-                          qcStatus === "failed" ? "text-status-rejected" : "text-muted-foreground"
-                        }`}>{qcLabel[qcStatus]}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {items.length > 50 && (
-              <div className="p-3 text-center text-xs text-muted-foreground border-t border-border">
-                מציג 50 מתוך {items.length} פריטים
-              </div>
-            )}
-          </div>
-        </div>
+        <ProjectItemsTab items={items} />
       )}
 
       {activeTab === "settings" && (
