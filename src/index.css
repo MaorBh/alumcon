@@ -63,6 +63,61 @@
     --station-windows: 330 65% 55%;
     --station-vitrines: 260 50% 60%;
   }
+
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    --primary: 199 89% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 20% 25%;
+
+    --muted: 220 14% 94%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 199 70% 90%;
+    --accent-foreground: 199 70% 25%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 86%;
+    --input: 220 14% 86%;
+    --ring: 199 89% 42%;
+
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 220 15% 35%;
+    --sidebar-primary: 199 89% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 90%;
+    --sidebar-accent-foreground: 220 20% 20%;
+    --sidebar-border: 220 14% 88%;
+    --sidebar-ring: 199 89% 42%;
+
+    --status-pending: 220 14% 80%;
+    --status-pending-foreground: 215 15% 35%;
+    --status-in-progress: 45 93% 47%;
+    --status-in-progress-foreground: 30 50% 10%;
+    --status-completed: 152 69% 40%;
+    --status-completed-foreground: 0 0% 100%;
+    --status-rejected: 0 72% 51%;
+    --status-rejected-foreground: 0 0% 100%;
+
+    --station-cnc: 280 60% 55%;
+    --station-frames: 199 89% 48%;
+    --station-glazing: 160 60% 45%;
+    --station-finishes: 35 90% 50%;
+    --station-windows: 330 65% 55%;
+    --station-vitrines: 260 50% 60%;
+  }
 }
 
 @layer base {
