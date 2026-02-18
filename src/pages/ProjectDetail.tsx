@@ -288,7 +288,7 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            <div className="sticky top-4 self-start">
+            <div className="lg:sticky lg:top-24 self-start">
               <div className="glass-card p-4">
                 <h3 className="font-semibold text-sm mb-3">
                   {selectedFloor ? `קומה ${selectedFloor} - פרטי פריטים` : "לחץ על קומה לפרטים"}
