@@ -1,11 +1,12 @@
 import { useParams, Link } from "react-router-dom";
-import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus } from "@/data/mockData";
+import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus, updateItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import ProjectItemsTab from "@/components/ProjectItemsTab";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
-import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, Grid3X3, List, Settings } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import BimViewer from "@/components/BimViewer";
+import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, Grid3X3, List, Settings, Box } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 
 const statusToColor: Record<ItemStatus, string> = {
   pending: "hsl(var(--status-pending))",
@@ -34,11 +35,12 @@ function getQcStatus(item: { qcApproved: boolean; status: ItemStatus; stationHis
   return "not_checked";
 }
 
-type Tab = "dashboard" | "grid" | "items" | "settings";
+type Tab = "dashboard" | "grid" | "bim" | "items" | "settings";
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "דשבורד", icon: LayoutDashboard },
   { id: "grid", label: "גריד", icon: Grid3X3 },
+  { id: "bim", label: "מודל BIM", icon: Box },
   { id: "items", label: "פריטים", icon: List },
   { id: "settings", label: "הגדרות", icon: Settings },
 ];
@@ -51,6 +53,7 @@ export default function ProjectDetail() {
   const [activeSide, setActiveSide] = useState("S-South");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const totalItems = items.length;
   const completed = items.filter(i => i.status === "completed").length;
@@ -64,7 +67,7 @@ export default function ProjectDetail() {
       completed: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "pass")).length,
       rejected: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "fail")).length,
     }));
-  }, [items]);
+  }, [items, refreshKey]);
 
   const recentItems = useMemo(() => {
     return items
@@ -75,24 +78,32 @@ export default function ProjectDetail() {
         return bLast.localeCompare(aLast);
       })
       .slice(0, 8);
-  }, [items]);
+  }, [items, refreshKey]);
 
-  const sideItems = useMemo(() => items.filter(i => i.side === activeSide), [items, activeSide]);
+  const sideItems = useMemo(() => items.filter(i => i.side === activeSide), [items, activeSide, refreshKey]);
   const floors = project?.floors || [];
   const reversedFloors = [...floors].reverse();
   const floorItems = useMemo(() => {
     if (!selectedFloor) return [];
     return sideItems.filter(i => i.floor === selectedFloor);
-  }, [sideItems, selectedFloor]);
+  }, [sideItems, selectedFloor, refreshKey]);
 
   useEffect(() => {
     if (selectedItemId) {
       const el = document.getElementById(`item-${selectedItemId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [selectedItemId]);
+
+  const handleBimStatusChange = useCallback((itemId: string, newStatus: ItemStatus) => {
+    if (!id) return;
+    updateItemStatus(id, itemId, newStatus);
+    setRefreshKey(k => k + 1);
+  }, [id]);
+
+  const handleBimSelectItem = useCallback((itemId: string) => {
+    setSelectedItemId(itemId);
+  }, []);
 
   if (!project) {
     return <div className="text-center py-20 text-muted-foreground">פרויקט לא נמצא</div>;
@@ -340,6 +351,18 @@ export default function ProjectDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === "bim" && id && (
+        <BimViewer
+          projectId={id}
+          items={items}
+          selectedItemId={selectedItemId}
+          onSelectItem={handleBimSelectItem}
+          onStatusChange={handleBimStatusChange}
+          activeSide={activeSide}
+          selectedFloor={selectedFloor}
+        />
       )}
 
       {activeTab === "items" && (
