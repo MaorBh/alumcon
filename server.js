@@ -152,8 +152,14 @@ app.get('/api/translate-status/:urn', async (req, res) => {
       `https://developer.api.autodesk.com/modelderivative/v2/designdata/${req.params.urn}/manifest`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
+    if (!resp.ok) {
+      return res.json({ status: 'pending', progress: '0%' });
+    }
     const data = await resp.json();
-    res.json({ status: data.status, progress: data.progress });
+    res.json({
+      status: data.status || 'pending',
+      progress: data.progress || '0%',
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
