@@ -39,10 +39,11 @@ export interface Project {
   completedItems: number;
   sides: string[];
   floors: number[];
+  urn?: string;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
-const floors = Array.from({ length: 13 }, (_, i) => 21 + i); // 21-33
+const floors = Array.from({ length: 13 }, (_, i) => 21 + i);
 
 function generateItems(projectId: string): ProjectItem[] {
   const items: ProjectItem[] = [];
@@ -53,9 +54,9 @@ function generateItems(projectId: string): ProjectItem[] {
     for (const floor of floors) {
       for (let unit = 1; unit <= unitsPerFloor; unit++) {
         itemIdx++;
-        const stationProgress = Math.floor(Math.random() * 7); // 0-6
+        const stationProgress = Math.floor(Math.random() * 7);
         const isRejected = stationProgress > 0 && Math.random() < 0.05;
-        const status: ItemStatus = 
+        const status: ItemStatus =
           stationProgress === 0 ? 'pending' :
           isRejected ? 'rejected' :
           stationProgress >= 6 ? 'completed' : 'in_progress';
@@ -139,7 +140,6 @@ export function addProject(config: {
     floors: config.floors,
   };
 
-  // Generate empty items for the project
   const items: ProjectItem[] = [];
   let idx = 0;
   for (const side of config.sides) {
@@ -177,4 +177,19 @@ export function getStationStats() {
     completed: allItems.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === 'pass')).length,
     rejected: allItems.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === 'fail')).length,
   }));
+}
+
+export function updateItemStatus(projectId: string, itemId: string, newStatus: ItemStatus) {
+  const items = PROJECT_ITEMS[projectId];
+  if (!items) return;
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  item.status = newStatus;
+  if (newStatus === 'completed') item.qcApproved = true;
+  if (newStatus === 'rejected') item.qcApproved = false;
+
+  const project = PROJECTS.find(p => p.id === projectId);
+  if (project) {
+    project.completedItems = items.filter(i => i.status === 'completed').length;
+  }
 }
