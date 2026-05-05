@@ -4,6 +4,7 @@ import { FolderKanban, Calendar, ArrowLeft, Package, CheckCircle, AlertTriangle,
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
 import { useMemo, useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Home() {
   const allItems = Object.values(PROJECT_ITEMS).flat();
@@ -154,15 +155,16 @@ export default function Home() {
             <h2 className="text-lg font-bold tracking-tight">תחנות ייצור</h2>
             <p className="text-xs text-muted-foreground mt-0.5">סטטוס כל תחנה לפי פרויקט</p>
           </div>
-          <select
-            value={stationsProjectId}
-            onChange={e => setStationsProjectId(e.target.value)}
-            className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-          >
-            {PROJECTS.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <Select value={stationsProjectId} onValueChange={setStationsProjectId}>
+            <SelectTrigger className="h-10 w-[220px] bg-background/60 border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary/60">
+              <SelectValue placeholder="בחר פרויקט" />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {PROJECTS.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {stationStats.map(s => (
