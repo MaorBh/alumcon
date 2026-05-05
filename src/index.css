@@ -6,117 +6,134 @@
 
 @layer base {
   :root {
-    --background: 220 20% 10%;
-    --foreground: 210 20% 92%;
+    --background: 222 24% 8%;
+    --foreground: 210 25% 96%;
 
-    --card: 220 18% 13%;
-    --card-foreground: 210 20% 92%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 25% 96%;
 
-    --popover: 220 18% 13%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 222 22% 11%;
+    --popover-foreground: 210 25% 96%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 220 20% 5%;
+    --primary: 199 95% 55%;
+    --primary-foreground: 222 30% 6%;
+    --primary-glow: 195 100% 65%;
 
-    --secondary: 220 16% 18%;
-    --secondary-foreground: 210 20% 85%;
+    --secondary: 222 18% 16%;
+    --secondary-foreground: 210 22% 88%;
 
-    --muted: 220 14% 16%;
-    --muted-foreground: 215 15% 55%;
+    --muted: 222 16% 14%;
+    --muted-foreground: 215 14% 58%;
 
-    --accent: 199 70% 35%;
-    --accent-foreground: 210 20% 95%;
+    --accent: 199 60% 22%;
+    --accent-foreground: 199 80% 88%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 75% 55%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 14% 20%;
-    --input: 220 14% 20%;
-    --ring: 199 89% 48%;
+    --border: 222 16% 18%;
+    --input: 222 16% 18%;
+    --ring: 199 95% 55%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 220 22% 8%;
-    --sidebar-foreground: 210 15% 75%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 220 20% 5%;
-    --sidebar-accent: 220 16% 14%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 220 14% 16%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-background: 222 28% 6%;
+    --sidebar-foreground: 210 14% 72%;
+    --sidebar-primary: 199 95% 55%;
+    --sidebar-primary-foreground: 222 30% 6%;
+    --sidebar-accent: 222 20% 12%;
+    --sidebar-accent-foreground: 210 22% 92%;
+    --sidebar-border: 222 18% 12%;
+    --sidebar-ring: 199 95% 55%;
 
     /* Status colors */
-    --status-pending: 220 14% 30%;
-    --status-pending-foreground: 215 15% 60%;
-    --status-in-progress: 45 93% 47%;
+    --status-pending: 222 14% 32%;
+    --status-pending-foreground: 215 18% 75%;
+    --status-in-progress: 38 95% 55%;
     --status-in-progress-foreground: 30 50% 10%;
-    --status-completed: 152 69% 40%;
+    --status-completed: 152 65% 45%;
     --status-completed-foreground: 150 50% 5%;
-    --status-rejected: 0 72% 51%;
+    --status-rejected: 0 75% 58%;
     --status-rejected-foreground: 0 0% 100%;
 
     /* Station colors */
-    --station-cnc: 280 60% 55%;
-    --station-frames: 199 89% 48%;
-    --station-glazing: 160 60% 45%;
-    --station-finishes: 35 90% 50%;
-    --station-windows: 330 65% 55%;
-    --station-vitrines: 260 50% 60%;
+    --station-cnc: 280 65% 62%;
+    --station-frames: 199 95% 55%;
+    --station-glazing: 160 65% 48%;
+    --station-finishes: 35 92% 55%;
+    --station-windows: 330 70% 60%;
+    --station-vitrines: 260 60% 65%;
+
+    /* Gradients & effects */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-surface: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(222 22% 9%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsl(var(--card) / 0.8), hsl(var(--card) / 0.4));
+    --shadow-elegant: 0 10px 40px -12px hsl(222 30% 2% / 0.6);
+    --shadow-glow: 0 0 32px -4px hsl(var(--primary) / 0.35);
+    --shadow-soft: 0 1px 2px hsl(222 30% 2% / 0.4), 0 4px 12px -4px hsl(222 30% 2% / 0.3);
   }
 
   .light {
-    --background: 0 0% 98%;
-    --foreground: 220 20% 15%;
+    --background: 220 25% 97%;
+    --foreground: 222 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 15%;
+    --card-foreground: 222 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 15%;
+    --popover-foreground: 222 30% 12%;
 
-    --primary: 199 89% 42%;
+    --primary: 199 89% 45%;
     --primary-foreground: 0 0% 100%;
+    --primary-glow: 195 95% 60%;
 
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 220 20% 25%;
+    --secondary: 220 16% 94%;
+    --secondary-foreground: 222 25% 22%;
 
-    --muted: 220 14% 94%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 222 12% 42%;
 
-    --accent: 199 70% 90%;
-    --accent-foreground: 199 70% 25%;
+    --accent: 199 85% 92%;
+    --accent-foreground: 199 70% 22%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 75% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 86%;
-    --input: 220 14% 86%;
-    --ring: 199 89% 42%;
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 199 89% 45%;
 
-    --sidebar-background: 220 14% 96%;
-    --sidebar-foreground: 220 15% 35%;
-    --sidebar-primary: 199 89% 42%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 18% 32%;
+    --sidebar-primary: 199 89% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 90%;
-    --sidebar-accent-foreground: 220 20% 20%;
-    --sidebar-border: 220 14% 88%;
-    --sidebar-ring: 199 89% 42%;
+    --sidebar-accent: 220 18% 95%;
+    --sidebar-accent-foreground: 222 25% 18%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 199 89% 45%;
 
-    --status-pending: 220 14% 80%;
-    --status-pending-foreground: 215 15% 35%;
-    --status-in-progress: 45 93% 47%;
+    --status-pending: 220 14% 82%;
+    --status-pending-foreground: 222 20% 30%;
+    --status-in-progress: 38 92% 50%;
     --status-in-progress-foreground: 30 50% 10%;
-    --status-completed: 152 69% 40%;
+    --status-completed: 152 65% 40%;
     --status-completed-foreground: 0 0% 100%;
-    --status-rejected: 0 72% 51%;
+    --status-rejected: 0 75% 52%;
     --status-rejected-foreground: 0 0% 100%;
 
-    --station-cnc: 280 60% 55%;
-    --station-frames: 199 89% 48%;
-    --station-glazing: 160 60% 45%;
-    --station-finishes: 35 90% 50%;
-    --station-windows: 330 65% 55%;
-    --station-vitrines: 260 50% 60%;
+    --station-cnc: 280 60% 52%;
+    --station-frames: 199 89% 45%;
+    --station-glazing: 160 60% 40%;
+    --station-finishes: 35 90% 48%;
+    --station-windows: 330 65% 50%;
+    --station-vitrines: 260 50% 55%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 20% 98%) 100%);
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.9), hsl(220 18% 98% / 0.7));
+    --shadow-elegant: 0 10px 40px -12px hsl(222 30% 60% / 0.18);
+    --shadow-glow: 0 0 24px -4px hsl(var(--primary) / 0.25);
+    --shadow-soft: 0 1px 2px hsl(222 30% 50% / 0.06), 0 4px 12px -4px hsl(222 30% 50% / 0.08);
   }
 }
 
@@ -131,23 +148,65 @@
 
   body {
     @apply bg-background text-foreground font-heebo antialiased;
+    font-feature-settings: "ss01", "cv11";
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heebo font-bold;
+    @apply font-heebo font-bold tracking-tight;
   }
+
+  /* Smooth scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
 }
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg;
+    background: var(--gradient-glass);
+    @apply backdrop-blur-xl border border-border/60 rounded-xl;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .surface-card {
+    background: var(--gradient-surface);
+    @apply border border-border/60 rounded-xl;
+    box-shadow: var(--shadow-soft);
   }
 
   .glow-primary {
-    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   .status-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elegant);
+  }
+}
+
+@layer components {
+  /* Animated pulse-glow for status dots */
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
   }
 }
