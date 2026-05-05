@@ -1,13 +1,22 @@
-import { PROJECT_ITEMS, STATIONS, ItemStatus } from "@/data/mockData";
+import { PROJECT_ITEMS, PROJECTS, STATIONS, ItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 
 export default function Items() {
-  const allItems = Object.values(PROJECT_ITEMS).flat();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+
+  const allItems = useMemo(() => {
+    if (projectFilter === "all") {
+      return Object.entries(PROJECT_ITEMS).flatMap(([pid, items]) =>
+        items.map(i => ({ ...i, projectId: pid }))
+      );
+    }
+    return (PROJECT_ITEMS[projectFilter] || []).map(i => ({ ...i, projectId: projectFilter }));
+  }, [projectFilter]);
 
   const filtered = useMemo(() => {
     return allItems.filter(item => {
@@ -17,6 +26,8 @@ export default function Items() {
       return matchSearch && matchStatus && matchStation;
     }).slice(0, 100);
   }, [allItems, search, statusFilter, stationFilter]);
+
+  const projectName = (pid: string) => PROJECTS.find(p => p.id === pid)?.name || pid;
 
   return (
     <div className="space-y-6">
@@ -37,6 +48,16 @@ export default function Items() {
             className="w-full h-10 bg-background/60 border border-border rounded-lg pr-10 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
           />
         </div>
+        <select
+          value={projectFilter}
+          onChange={e => setProjectFilter(e.target.value)}
+          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+        >
+          <option value="all">כל הפרויקטים</option>
+          {PROJECTS.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as ItemStatus | "all")}
@@ -69,7 +90,7 @@ export default function Items() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {["ברקוד", "סוג", "חזית", "קומה", "יחידה", "סטטוס", "תחנה נוכחית", "QC", "התקדמות"].map(h => (
+                {["ברקוד", "פרויקט", "סוג", "חזית", "קומה", "יחידה", "סטטוס", "תחנה נוכחית", "QC", "התקדמות"].map(h => (
                   <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
                 ))}
               </tr>
@@ -80,6 +101,7 @@ export default function Items() {
                 return (
                   <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-inter">{item.barcode}</td>
+                    <td className="px-4 py-3 text-xs">{projectName(item.projectId)}</td>
                     <td className="px-4 py-3 text-xs">{item.type}</td>
                     <td className="px-4 py-3 text-xs">{item.side}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums">{item.floor}</td>
