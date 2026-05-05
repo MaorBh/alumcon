@@ -1,8 +1,9 @@
-import { PROJECTS, PROJECT_ITEMS, getStationStats } from "@/data/mockData";
+import { PROJECTS, PROJECT_ITEMS, STATIONS } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { FolderKanban, Calendar, ArrowLeft, Package, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
+import { useMemo, useState } from "react";
 
 export default function Home() {
   const allItems = Object.values(PROJECT_ITEMS).flat();
@@ -10,7 +11,23 @@ export default function Home() {
   const completed = allItems.filter(i => i.status === "completed").length;
   const inProgress = allItems.filter(i => i.status === "in_progress").length;
   const rejected = allItems.filter(i => i.status === "rejected").length;
-  const stationStats = getStationStats();
+
+  const newestProjectId = useMemo(
+    () => [...PROJECTS].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.id ?? "",
+    [],
+  );
+  const [stationsProjectId, setStationsProjectId] = useState<string>(newestProjectId);
+
+  const stationStats = useMemo(() => {
+    const items = PROJECT_ITEMS[stationsProjectId] || [];
+    return STATIONS.map(s => ({
+      ...s,
+      active: items.filter(i => i.currentStation === s.id && i.status === "in_progress").length,
+      completed: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "pass")).length,
+      rejected: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "fail")).length,
+    }));
+  }, [stationsProjectId]);
+
 
   return (
     <div className="space-y-8">
@@ -132,9 +149,20 @@ export default function Home() {
 
       {/* Stations */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight">תחנות ייצור</h2>
-          <span className="text-xs text-muted-foreground">סטטוס כל תחנה במפעל</span>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">תחנות ייצור</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">סטטוס כל תחנה לפי פרויקט</p>
+          </div>
+          <select
+            value={stationsProjectId}
+            onChange={e => setStationsProjectId(e.target.value)}
+            className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+          >
+            {PROJECTS.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {stationStats.map(s => (
