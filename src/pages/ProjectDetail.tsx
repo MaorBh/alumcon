@@ -114,26 +114,30 @@ export default function ProjectDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
+      <div className="flex items-center gap-4">
+        <Link
+          to="/projects"
+          className="w-10 h-10 rounded-xl border border-border/60 bg-secondary/40 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all flex items-center justify-center shrink-0"
+          aria-label="חזרה לפרויקטים"
+        >
           <ArrowRight className="w-5 h-5" />
         </Link>
-        <div>
-          <h2 className="text-xl font-bold">{project.name}</h2>
-          <p className="text-sm text-muted-foreground">{project.description}</p>
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold tracking-tight truncate">{project.name}</h2>
+          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
         </div>
       </div>
 
       {/* Tab buttons */}
-      <div className="flex gap-2 border-b border-border pb-0">
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all duration-200 border-b-2 -mb-px ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all duration-200 border-b-2 -mb-px whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -162,16 +166,14 @@ export default function ProjectDetail() {
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-lg font-bold">פעילות אחרונה</h2>
-            <div className="glass-card overflow-hidden">
+            <h3 className="text-lg font-bold tracking-tight">פעילות אחרונה</h3>
+            <div className="surface-card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-right p-3 text-xs text-muted-foreground font-medium">ברקוד</th>
-                    <th className="text-right p-3 text-xs text-muted-foreground font-medium">סוג</th>
-                    <th className="text-right p-3 text-xs text-muted-foreground font-medium">תחנה אחרונה</th>
-                    <th className="text-right p-3 text-xs text-muted-foreground font-medium">סטטוס</th>
-                    <th className="text-right p-3 text-xs text-muted-foreground font-medium">קומה</th>
+                  <tr className="border-b border-border bg-muted/30">
+                    {["ברקוד", "סוג", "תחנה אחרונה", "סטטוס", "קומה"].map(h => (
+                      <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -179,12 +181,12 @@ export default function ProjectDetail() {
                     const lastStation = item.stationHistory[item.stationHistory.length - 1];
                     const stationName = STATIONS.find(s => s.id === lastStation?.station)?.name || "-";
                     return (
-                      <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <td className="p-3 font-inter text-xs font-mono">{item.barcode}</td>
-                        <td className="p-3 text-xs">{item.type}</td>
-                        <td className="p-3 text-xs">{stationName}</td>
-                        <td className="p-3"><StatusBadge status={item.status} /></td>
-                        <td className="p-3 text-xs font-inter">{item.floor}</td>
+                      <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-inter text-xs font-mono">{item.barcode}</td>
+                        <td className="px-4 py-3 text-xs">{item.type}</td>
+                        <td className="px-4 py-3 text-xs">{stationName}</td>
+                        <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                        <td className="px-4 py-3 text-xs font-inter tabular-nums">{item.floor}</td>
                       </tr>
                     );
                   })}
