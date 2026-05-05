@@ -2,6 +2,7 @@ import { PROJECT_ITEMS, PROJECTS, STATIONS, ItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Items() {
   const [search, setSearch] = useState("");
@@ -48,37 +49,40 @@ export default function Items() {
             className="w-full h-10 bg-background/60 border border-border rounded-lg pr-10 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
           />
         </div>
-        <select
-          value={projectFilter}
-          onChange={e => setProjectFilter(e.target.value)}
-          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-        >
-          <option value="all">כל הפרויקטים</option>
-          {PROJECTS.map(p => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as ItemStatus | "all")}
-          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-        >
-          <option value="all">כל הסטטוסים</option>
-          <option value="pending">ממתין</option>
-          <option value="in_progress">בתהליך</option>
-          <option value="completed">הושלם</option>
-          <option value="rejected">נפסל</option>
-        </select>
-        <select
-          value={stationFilter}
-          onChange={e => setStationFilter(e.target.value)}
-          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-        >
-          <option value="all">כל התחנות</option>
-          {STATIONS.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <SelectTrigger className="h-10 w-[180px] bg-background/60 border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary/60">
+            <SelectValue placeholder="כל הפרויקטים" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">כל הפרויקטים</SelectItem>
+            {PROJECTS.map(p => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={v => setStatusFilter(v as ItemStatus | "all")}>
+          <SelectTrigger className="h-10 w-[160px] bg-background/60 border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary/60">
+            <SelectValue placeholder="כל הסטטוסים" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">כל הסטטוסים</SelectItem>
+            <SelectItem value="pending">ממתין</SelectItem>
+            <SelectItem value="in_progress">בתהליך</SelectItem>
+            <SelectItem value="completed">הושלם</SelectItem>
+            <SelectItem value="rejected">נפסל</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={stationFilter} onValueChange={setStationFilter}>
+          <SelectTrigger className="h-10 w-[160px] bg-background/60 border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary/60">
+            <SelectValue placeholder="כל התחנות" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">כל התחנות</SelectItem>
+            {STATIONS.map(s => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <span className="text-xs text-muted-foreground mr-auto">
           מציג <span className="font-inter font-semibold text-foreground tabular-nums">{filtered.length}</span> מתוך <span className="font-inter tabular-nums">{allItems.length}</span>
         </span>
