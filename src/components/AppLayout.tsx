@@ -6,7 +6,6 @@ import {
   ScanBarcode,
   Settings,
   ChevronRight,
-  Factory,
   Menu,
   Sun,
   Moon,
@@ -17,7 +16,6 @@ const navItems = [
   { path: "/", label: "מבט על", icon: LayoutDashboard },
   { path: "/projects", label: "פרויקטים", icon: FolderKanban },
   { path: "/items", label: "פריטים", icon: ScanBarcode },
-  { path: "/stations", label: "תחנות", icon: Factory },
   { path: "/settings", label: "הגדרות", icon: Settings },
 ];
 
