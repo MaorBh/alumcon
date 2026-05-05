@@ -209,13 +209,14 @@ export default function ProjectDetail() {
                 <button
                   key={side}
                   onClick={() => { setActiveSide(side); setSelectedFloor(null); setSelectedItemId(null); }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`h-9 px-4 rounded-lg text-sm font-medium transition-all duration-200 inline-flex items-center gap-2 ${
                     activeSide === side
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      ? "bg-primary text-primary-foreground shadow-glow"
+                      : "bg-secondary/60 border border-border/60 text-secondary-foreground hover:bg-secondary"
                   }`}
                 >
-                  {side} ({pct}%)
+                  <span>{side}</span>
+                  <span className={`text-[11px] font-inter tabular-nums ${activeSide === side ? "opacity-90" : "text-muted-foreground"}`}>{pct}%</span>
                 </button>
               );
             })}
