@@ -1,7 +1,8 @@
-import { PROJECTS, PROJECT_ITEMS } from "@/data/mockData";
+import { PROJECTS, PROJECT_ITEMS, getStationStats } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { FolderKanban, Calendar, ArrowLeft, Package, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import KpiCard from "@/components/KpiCard";
+import StationCard from "@/components/StationCard";
 
 export default function Home() {
   const allItems = Object.values(PROJECT_ITEMS).flat();
@@ -9,6 +10,7 @@ export default function Home() {
   const completed = allItems.filter(i => i.status === "completed").length;
   const inProgress = allItems.filter(i => i.status === "in_progress").length;
   const rejected = allItems.filter(i => i.status === "rejected").length;
+  const stationStats = getStationStats();
 
   return (
     <div className="space-y-8">
@@ -125,6 +127,26 @@ export default function Home() {
               </Link>
             );
           })}
+        </div>
+      </section>
+
+      {/* Stations */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold tracking-tight">תחנות ייצור</h2>
+          <span className="text-xs text-muted-foreground">סטטוס כל תחנה במפעל</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {stationStats.map(s => (
+            <StationCard
+              key={s.id}
+              name={s.name}
+              stationId={s.id}
+              active={s.active}
+              completed={s.completed}
+              rejected={s.rejected}
+            />
+          ))}
         </div>
       </section>
     </div>
