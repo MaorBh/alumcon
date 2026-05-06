@@ -9,8 +9,12 @@ import {
   Menu,
   Sun,
   Moon,
+  LogOut,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/auth/AuthContext";
+import { ROLE_LABELS } from "@/auth/users";
+import { useNavigate } from "react-router-dom";
 
 const navItems = [
   { path: "/", label: "מבט על", icon: LayoutDashboard },
@@ -21,6 +25,8 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLight, setIsLight] = useState(() =>
     typeof document !== "undefined" && document.documentElement.classList.contains("light"),
@@ -131,6 +137,25 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             >
               {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
+            {user && (
+              <div className="flex items-center gap-2 pr-2 border-r border-border/60">
+                <div className="text-right leading-tight">
+                  <div className="text-xs font-semibold text-foreground">{user.displayName}</div>
+                  <div className="text-[10px] text-muted-foreground">{ROLE_LABELS[user.role]}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate("/login", { replace: true });
+                  }}
+                  className="w-9 h-9 rounded-lg border border-border/60 bg-secondary/60 hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center text-muted-foreground transition-colors"
+                  aria-label="Logout"
+                  title="התנתק"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
