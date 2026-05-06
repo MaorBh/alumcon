@@ -117,6 +117,7 @@ export default function QcScan() {
         {item && (
           <>
             <ItemInfoCard item={item} projectId={projectId} />
+            <ExistingPhotos itemId={item.id} />
 
             <div className="surface-card p-4 space-y-3">
               <div className="text-sm font-semibold">פעולת בקר</div>
