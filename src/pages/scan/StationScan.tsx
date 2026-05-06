@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import ScanLayout from "@/scan/ScanLayout";
 import BarcodeInput from "@/scan/BarcodeInput";
 import ItemInfoCard from "@/scan/ItemInfoCard";
+import ExistingPhotos from "@/scan/ExistingPhotos";
 import PhotoCapture from "@/scan/PhotoCapture";
 import { getCurrentUser } from "@/scan/scanAuth";
 import { findItemByBarcode, getStationName, recordStationScan } from "@/scan/scanData";
