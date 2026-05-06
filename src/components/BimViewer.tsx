@@ -19,21 +19,13 @@ const STATUS_LABELS: Record<ItemStatus, string> = {
 };
 
 interface BimViewerProps {
-  projectId: string;
-  items: ProjectItem[];
-  selectedItemId: string | null;
-  onSelectItem: (itemId: string) => void;
-  onStatusChange: (itemId: string, newStatus: ItemStatus) => void;
-  activeSide?: string;
-  selectedFloor?: number | null;
+  projectId: string; items: ProjectItem[]; selectedItemId: string | null;
+  onSelectItem: (itemId: string) => void; onStatusChange: (itemId: string, newStatus: ItemStatus) => void;
+  activeSide?: string; selectedFloor?: number | null;
 }
 
-function getLocalUrn(projectId: string): string | null {
-  try { return localStorage.getItem("bim_urn_" + projectId); } catch { return null; }
-}
-function setLocalUrn(projectId: string, urn: string) {
-  try { localStorage.setItem("bim_urn_" + projectId, urn); } catch {}
-}
+function getLocalUrn(pid: string) { try { return localStorage.getItem("bim_urn_" + pid); } catch { return null; } }
+function setLocalUrn(pid: string, urn: string) { try { localStorage.setItem("bim_urn_" + pid, urn); } catch {} }
 
 export default function BimViewer({ projectId, items, selectedItemId, onSelectItem, onStatusChange, activeSide, selectedFloor }: BimViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,9 +38,12 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
 
   const [urn, setUrn] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const [uploadError, setUploadError] = useState("");
   const [translating, setTranslating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState("");
+  const [transProgress, setTransProgress] = useState(0);
+  const [transMsg, setTransMsg] = useState("");
   const [viewerLoaded, setViewerLoaded] = useState(false);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<ProjectItem | null>(null);
@@ -58,25 +53,18 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
   useEffect(() => {
     const localUrn = getLocalUrn(projectId);
     if (localUrn) setUrn(localUrn);
-
     fetch(API_URL + "/api/project-urn/" + projectId)
       .then((r) => r.json())
       .then((d) => {
-        if (d.urn) {
-          setUrn(d.urn);
-          setLocalUrn(projectId, d.urn);
-        } else if (localUrn) {
-          // Server lost the URN — restore it
+        if (d.urn) { setUrn(d.urn); setLocalUrn(projectId, d.urn); }
+        else if (localUrn) {
           fetch(API_URL + "/api/restore-urn/" + projectId, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ urn: localUrn }),
           }).catch(() => {});
         }
       })
-      .catch(() => {
-        if (localUrn) setUrn(localUrn);
-      });
+      .catch(() => { if (localUrn) setUrn(localUrn); });
   }, [projectId]);
 
   // Init viewer when URN is set
@@ -87,24 +75,19 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
       fetch(API_URL + "/api/token")
         .then((r) => r.json())
         .then(({ access_token }) => {
-          if (!access_token) { setMessage("שגיאה בקבלת token"); return; }
+          if (!access_token) { setTransMsg("שגיאה בקבלת token"); return; }
           window.Autodesk.Viewing.Initializer(
             { env: "AutodeskProduction2", api: "streamingV2", accessToken: access_token },
             () => {
               if (!containerRef.current) return;
-              const v = new window.Autodesk.Viewing.GuiViewer3D(containerRef.current, {
-                extensions: ["Autodesk.DefaultTools.NavTools"],
-              });
-              v.start();
-              v.setBackgroundColor(22, 26, 32, 22, 26, 32);
-              viewerRef.current = v;
-              loadModel(urn!);
+              const v = new window.Autodesk.Viewing.GuiViewer3D(containerRef.current, { extensions: ["Autodesk.DefaultTools.NavTools"] });
+              v.start(); v.setBackgroundColor(22, 26, 32, 22, 26, 32);
+              viewerRef.current = v; loadModel(urn!);
             }
           );
         })
-        .catch(() => setMessage("שגיאה בהתחברות לשרת"));
+        .catch(() => setTransMsg("שגיאה בהתחברות לשרת"));
     }
-
     if (window.Autodesk) { init(); return; }
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -112,50 +95,33 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
     document.head.appendChild(link);
     const script = document.createElement("script");
     script.src = "https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js";
-    script.onload = init;
-    document.head.appendChild(script);
+    script.onload = init; document.head.appendChild(script);
   }, [urn]);
 
-  useEffect(() => {
-    if (viewerLoaded && viewerRef.current && modelRef.current) applyColors();
-  }, [items, viewerLoaded]);
+  useEffect(() => { if (viewerLoaded && viewerRef.current && modelRef.current) applyColors(); }, [items, viewerLoaded]);
 
   useEffect(() => {
     if (!viewerLoaded || !viewerRef.current || !modelRef.current || !selectedItemId) return;
     const dbId = itemIdToDbId.current[selectedItemId];
-    if (dbId) {
-      viewerRef.current.setThemingColor(dbId, new window.THREE.Vector4(...COLOR_SELECTED), modelRef.current);
-      viewerRef.current.fitToView([dbId], modelRef.current);
-    }
+    if (dbId) { viewerRef.current.setThemingColor(dbId, new window.THREE.Vector4(...COLOR_SELECTED), modelRef.current); viewerRef.current.fitToView([dbId], modelRef.current); }
     const item = items.find((i) => i.id === selectedItemId);
     if (item) setDetailItem(item);
   }, [selectedItemId, viewerLoaded]);
 
-  function loadModel(modelUrn: string) {
-    setTranslating(true);
-    setMessage("בודק סטטוס המרה...");
-    pollTranslation(modelUrn);
-  }
+  function loadModel(modelUrn: string) { setTranslating(true); setTransMsg("בודק סטטוס המרה..."); pollTranslation(modelUrn); }
 
   async function pollTranslation(modelUrn: string) {
     try {
       const resp = await fetch(API_URL + "/api/translate-status/" + encodeURIComponent(modelUrn));
       const status = await resp.json();
-      if (status.status === "success") {
-        setTranslating(false); setMessage(""); startLoadingModel(modelUrn);
-      } else if (status.status === "failed") {
-        setTranslating(false); setMessage("שגיאה בהמרה");
-      } else {
-        const pct = parseInt(status.progress) || 0;
-        setProgress(pct); setMessage("ממיר מודל... " + pct + "%");
-        setTimeout(() => pollTranslation(modelUrn), 4000);
-      }
-    } catch { setMessage("שגיאה בבדיקת סטטוס"); setTranslating(false); }
+      if (status.status === "success") { setTranslating(false); setTransMsg(""); startLoadingModel(modelUrn); }
+      else if (status.status === "failed") { setTranslating(false); setTransMsg("שגיאה בהמרה"); }
+      else { const pct = parseInt(status.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn), 4000); }
+    } catch { setTransMsg("שגיאה בבדיקת סטטוס"); setTranslating(false); }
   }
 
   function startLoadingModel(modelUrn: string) {
-    const viewer = viewerRef.current;
-    if (!viewer) return;
+    const viewer = viewerRef.current; if (!viewer) return;
     window.Autodesk.Viewing.Document.load("urn:" + modelUrn,
       (doc: any) => {
         const root = doc.getRoot();
@@ -164,13 +130,10 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
         const view = views3d[0] || views2d[0] || root.getDefaultGeometry();
         viewer.loadDocumentNode(doc, view).then((model: any) => {
           modelRef.current = model;
-          viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
-            buildMappings(viewer, model);
-            setViewerLoaded(true);
-          });
+          viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => { buildMappings(viewer, model); setViewerLoaded(true); });
         });
       },
-      (err: any) => { console.error("Document load error:", err); setMessage("שגיאה בטעינת המודל"); }
+      (err: any) => { console.error("Document load error:", err); setTransMsg("שגיאה בטעינת המודל: " + JSON.stringify(err)); }
     );
   }
 
@@ -179,20 +142,13 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
       (results: any[]) => {
         nameToDbId.current = {}; dbIdToItemId.current = {}; itemIdToDbId.current = {};
         results.forEach(({ dbId, properties }: any) => {
-          properties.forEach(({ displayValue }: any) => {
-            if (displayValue) nameToDbId.current[String(displayValue).trim()] = dbId;
-          });
+          properties.forEach(({ displayValue }: any) => { if (displayValue) nameToDbId.current[String(displayValue).trim()] = dbId; });
         });
         items.forEach((item) => {
           for (const key of [item.barcode, item.id, item.side + "-" + item.floor + "-" + item.unit]) {
-            if (nameToDbId.current[key]) {
-              dbIdToItemId.current[nameToDbId.current[key]] = item.id;
-              itemIdToDbId.current[item.id] = nameToDbId.current[key];
-              break;
-            }
+            if (nameToDbId.current[key]) { dbIdToItemId.current[nameToDbId.current[key]] = item.id; itemIdToDbId.current[item.id] = nameToDbId.current[key]; break; }
           }
         });
-        console.log("BIM: mapped " + Object.keys(itemIdToDbId.current).length + " items");
         applyColors(); setupClickHandler(viewer);
       },
       (err: any) => console.error("buildMappings error:", err)
@@ -200,39 +156,26 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
   }
 
   function applyColors() {
-    const viewer = viewerRef.current; const model = modelRef.current;
-    if (!viewer || !model) return;
+    const viewer = viewerRef.current; const model = modelRef.current; if (!viewer || !model) return;
     viewer.clearThemingColors(model);
-    items.forEach((item) => {
-      const dbId = itemIdToDbId.current[item.id];
-      if (dbId) viewer.setThemingColor(dbId, new window.THREE.Vector4(...STATUS_COLORS[item.status]), model);
-    });
-    multiSelected.forEach((itemId) => {
-      const dbId = itemIdToDbId.current[itemId];
-      if (dbId) viewer.setThemingColor(dbId, new window.THREE.Vector4(...COLOR_SELECTED), model);
-    });
+    items.forEach((item) => { const dbId = itemIdToDbId.current[item.id]; if (dbId) viewer.setThemingColor(dbId, new window.THREE.Vector4(...STATUS_COLORS[item.status]), model); });
+    multiSelected.forEach((itemId) => { const dbId = itemIdToDbId.current[itemId]; if (dbId) viewer.setThemingColor(dbId, new window.THREE.Vector4(...COLOR_SELECTED), model); });
   }
 
   function setupClickHandler(viewer: any) {
-    if (handlerSetRef.current) return;
-    handlerSetRef.current = true;
+    if (handlerSetRef.current) return; handlerSetRef.current = true;
     viewer.addEventListener(window.Autodesk.Viewing.SELECTION_CHANGED_EVENT, (e: any) => {
-      const selected = e.dbIdArray || [];
-      if (!selected.length) return;
+      const selected = e.dbIdArray || []; if (!selected.length) return;
       const itemId = dbIdToItemId.current[selected[0]];
       if (itemId) { onSelectItem(itemId); const item = items.find((i) => i.id === itemId); if (item) setDetailItem(item); }
     });
   }
 
-  function bulkChangeStatus(newStatus: ItemStatus) {
-    multiSelected.forEach((itemId) => onStatusChange(itemId, newStatus));
-    setMultiSelected(new Set());
-  }
+  function bulkChangeStatus(newStatus: ItemStatus) { multiSelected.forEach((itemId) => onStatusChange(itemId, newStatus)); setMultiSelected(new Set()); }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true); setMessage("מעלה " + file.name + "..."); setProgress(0);
+    const file = e.target.files?.[0]; if (!file) return;
+    setUploading(true); setUploadError(""); setUploadPct(0); setUploadMsg("מעלה " + file.name + "...");
     const formData = new FormData();
     formData.append("model", file);
     try {
@@ -240,41 +183,61 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
       const uploadPromise = new Promise<string>((resolve, reject) => {
         xhr.open("POST", API_URL + "/api/upload-model/" + projectId);
         xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) { const pct = Math.round(ev.loaded / ev.total * 100); setProgress(pct); setMessage("מעלה " + file.name + "... " + pct + "%"); }
+          if (ev.lengthComputable) { const pct = Math.round(ev.loaded / ev.total * 100); setUploadPct(pct); setUploadMsg("מעלה " + file.name + "... " + pct + "%"); }
         };
         xhr.onload = () => {
-          try { const data = JSON.parse(xhr.responseText); if (data.urn) resolve(data.urn); else reject(new Error(data.error || "Upload failed")); }
-          catch (err) { reject(err); }
+          const raw = xhr.responseText;
+          console.log("Upload response:", raw);
+          try {
+            const data = JSON.parse(raw);
+            if (data.urn) resolve(data.urn);
+            else reject(new Error(data.error || "שגיאת שרת: " + raw.substring(0, 200)));
+          } catch { reject(new Error("תגובה לא תקינה מהשרת: " + raw.substring(0, 200))); }
         };
-        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.onerror = () => reject(new Error("שגיאת רשת — ודא שהשרת פעיל"));
         xhr.send(formData);
       });
       const newUrn = await uploadPromise;
       setLocalUrn(projectId, newUrn);
-      setUrn(newUrn); setUploading(false); setMessage("הועלה! מתחיל המרה...");
-    } catch (err: any) { setMessage("שגיאה: " + err.message); setUploading(false); }
+      setUrn(newUrn); setUploading(false); setUploadMsg("");
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setUploadError(err.message || "שגיאה לא ידועה");
+      setUploading(false);
+    }
     e.target.value = "";
   }
 
-  function handleManualUrn() {
-    const u = manualUrn.trim();
-    if (!u) return;
-    setLocalUrn(projectId, u);
-    setUrn(u);
-  }
+  function handleManualUrn() { const u = manualUrn.trim(); if (!u) return; setLocalUrn(projectId, u); setUrn(u); }
 
   if (!urn) {
     return (
-      <div className="glass-card flex flex-col items-center justify-center py-16 gap-4">
+      <div className="glass-card flex flex-col items-center justify-center py-16 gap-4 max-w-lg mx-auto">
         <div className="text-6xl font-bold text-primary/20">BIM</div>
         <h3 className="text-lg font-semibold">{"אין מודל BIM לפרויקט זה"}</h3>
-        <p className="text-sm text-muted-foreground">{"העלה קובץ RVT, STP או IFC כדי להתחיל"}</p>
-        <label className="cursor-pointer bg-primary text-primary-foreground px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-          {uploading ? message : "העלה קובץ BIM"}
-          <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} />
+        <p className="text-sm text-muted-foreground">{"העלה קובץ RVT, STP או IFC"}</p>
+
+        {/* Error box */}
+        {uploadError && (
+          <div className="w-full bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-3 text-xs text-destructive text-right">
+            <p className="font-semibold mb-1">{"שגיאה בהעלאה:"}</p>
+            <p className="font-mono break-all">{uploadError}</p>
+          </div>
+        )}
+
+        <label className={"cursor-pointer px-6 py-2.5 rounded-lg text-sm font-medium transition-colors " + (uploading ? "bg-primary/50 text-primary-foreground cursor-wait" : "bg-primary text-primary-foreground hover:bg-primary/90")}>
+          {uploading ? uploadMsg : "העלה קובץ BIM"}
+          <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} disabled={uploading} />
         </label>
-        {uploading && <div className="w-64 h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: progress + "%" }} /></div>}
-        <div className="flex gap-2 mt-2 w-full max-w-sm">
+
+        {uploading && (
+          <div className="w-64 space-y-1">
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: uploadPct + "%" }} /></div>
+            <p className="text-xs text-center text-muted-foreground">{uploadMsg}</p>
+          </div>
+        )}
+
+        <div className="flex gap-2 w-full max-w-sm">
           <input type="text" placeholder="או הזן URN קיים..." value={manualUrn} onChange={(e) => setManualUrn(e.target.value)}
             className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
           <button onClick={handleManualUrn} className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs hover:bg-muted transition-colors">{"טען"}</button>
@@ -288,10 +251,15 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
       <div className="lg:col-span-2">
         <div className="glass-card overflow-hidden relative" style={{ height: "600px" }}>
           <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-          {(translating || uploading) && (
+          {(translating) && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur border border-border rounded-lg px-4 py-2 flex items-center gap-3 z-10">
-              <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: progress + "%" }} /></div>
-              <span className="text-xs text-muted-foreground">{message}</span>
+              <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: transProgress + "%" }} /></div>
+              <span className="text-xs text-muted-foreground">{transMsg}</span>
+            </div>
+          )}
+          {transMsg && !translating && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-2 z-10">
+              <span className="text-xs text-destructive">{transMsg}</span>
             </div>
           )}
           <label className="absolute top-3 left-3 cursor-pointer bg-secondary/80 hover:bg-secondary backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors z-10">
