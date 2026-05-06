@@ -70,6 +70,19 @@ async function ensureBucket() {
   }
 }
 
+// Check if a URN already has a completed translation
+async function checkExistingManifest(urn, token) {
+  try {
+    const resp = await fetch(
+      `https://developer.api.autodesk.com/modelderivative/v2/designdata/${urn}/manifest`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data;
+  } catch { return null; }
+}
+
 app.get('/api/token', async (req, res) => {
   try { res.json({ access_token: await getToken() }); }
   catch (err) { res.status(500).json({ error: err.message }); }
@@ -94,6 +107,7 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
     const objectName = `${projectId}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const fileBuffer = fs.readFileSync(req.file.path);
 
+    // Step 1: Get signed upload URL
     const signedResp = await fetch(
       `https://developer.api.autodesk.com/oss/v2/buckets/${BUCKET_KEY}/objects/${encodeURIComponent(objectName)}/signeds3upload?minutesExpiration=60`,
       { method: 'GET', headers: { Authorization: `Bearer ${token}` } }
@@ -101,6 +115,7 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
     if (!signedResp.ok) throw new Error(`Signed URL failed: ${await signedResp.text()}`);
     const { uploadKey, urls } = await signedResp.json();
 
+    // Step 2: Upload to S3
     const s3Resp = await fetch(urls[0], {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
@@ -108,6 +123,7 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
     });
     if (!s3Resp.ok) throw new Error(`S3 upload failed: ${s3Resp.status}`);
 
+    // Step 3: Finalize upload
     const completeResp = await fetch(
       `https://developer.api.autodesk.com/oss/v2/buckets/${BUCKET_KEY}/objects/${encodeURIComponent(objectName)}/signeds3upload`,
       {
@@ -123,6 +139,17 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
     const urn = Buffer.from(`urn:adsk.objects:os.object:${BUCKET_KEY}/${objectName}`)
       .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
+    // Step 4: Check if already translated (skip if complete)
+    const existing = await checkExistingManifest(urn, token);
+    if (existing && existing.status === 'success') {
+      console.log('Already translated, reusing. URN:', urn);
+      const urns = loadUrns();
+      urns[projectId] = urn;
+      saveUrns(urns);
+      return res.json({ urn });
+    }
+
+    // Step 5: Start translation job
     const jobResp = await fetch('https://developer.api.autodesk.com/modelderivative/v2/designdata/job', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'x-ads-force': 'true' },
@@ -131,7 +158,20 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
         output: { formats: [{ type: 'svf', views: ['3d', '2d'] }] }
       })
     });
-    if (!jobResp.ok && jobResp.status !== 409) throw new Error(`Translation failed: ${await jobResp.text()}`);
+
+    if (!jobResp.ok && jobResp.status !== 409) {
+      // Translation failed — try fallback: check if there's any existing manifest
+      const retryManifest = await checkExistingManifest(urn, token);
+      if (retryManifest && (retryManifest.status === 'success' || retryManifest.status === 'inprogress')) {
+        console.log('Translation API failed but manifest exists, continuing. URN:', urn);
+        const urns = loadUrns();
+        urns[projectId] = urn;
+        saveUrns(urns);
+        return res.json({ urn });
+      }
+      const errText = await jobResp.text();
+      throw new Error(`Translation failed: ${errText}`);
+    }
 
     const urns = loadUrns();
     urns[projectId] = urn;
@@ -163,7 +203,6 @@ app.get('/api/translate-status/:urn', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-
 app.post('/api/restore-urn/:projectId', (req, res) => {
   const { urn } = req.body;
   if (!urn) return res.status(400).json({ error: 'missing urn' });
@@ -173,6 +212,35 @@ app.post('/api/restore-urn/:projectId', (req, res) => {
   console.log('URN restored for', req.params.projectId);
   res.json({ ok: true });
 });
+
+// List all translated models available in all known buckets
+app.get('/api/available-models', async (req, res) => {
+  try {
+    const token = await getToken();
+    const buckets = ['alumcon001', 'bimtracker001', 'bim-tracker-your-company-name'];
+    const results = [];
+    for (const bkt of buckets) {
+      try {
+        const objResp = await fetch(
+          `https://developer.api.autodesk.com/oss/v2/buckets/${bkt}/objects`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!objResp.ok) continue;
+        const { items } = await objResp.json();
+        for (const item of (items || [])) {
+          const urn = Buffer.from(`urn:adsk.objects:os.object:${bkt}/${item.objectKey}`)
+            .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+          const manifest = await checkExistingManifest(urn, token);
+          if (manifest && manifest.status === 'success') {
+            results.push({ bucket: bkt, name: item.objectKey, urn, sizeMB: Math.round(item.size / 1048576 * 10) / 10 });
+          }
+        }
+      } catch { /* skip bucket */ }
+    }
+    res.json({ models: results });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
   app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
