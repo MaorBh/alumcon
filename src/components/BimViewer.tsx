@@ -77,7 +77,7 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
         .then(({ access_token }) => {
           if (!access_token) { setTransMsg("שגיאה בקבלת token"); return; }
           window.Autodesk.Viewing.Initializer(
-            { env: "AutodeskProduction2", api: "streamingV2", accessToken: access_token },
+            { env: "AutodeskProduction", accessToken: access_token },
             () => {
               if (!containerRef.current) return;
               const v = new window.Autodesk.Viewing.GuiViewer3D(containerRef.current, { extensions: ["Autodesk.DefaultTools.NavTools"] });
