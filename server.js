@@ -128,7 +128,7 @@ app.post('/api/upload-model/:projectId', upload.single('model'), async (req, res
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'x-ads-force': 'true' },
       body: JSON.stringify({
         input: { urn },
-        output: { formats: [{ type: 'svf2', views: ['3d', '2d'], advanced: { generateMasterViews: true } }] }
+        output: { formats: [{ type: 'svf', views: ['3d', '2d'] }] }
       })
     });
     if (!jobResp.ok && jobResp.status !== 409) throw new Error(`Translation failed: ${await jobResp.text()}`);
