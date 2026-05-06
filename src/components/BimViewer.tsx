@@ -18,6 +18,8 @@ const STATUS_LABELS: Record<ItemStatus, string> = {
   pending: "ממתין", in_progress: "בתהליך", completed: "הושלם", rejected: "נפסל",
 };
 
+interface AvailableModel { bucket: string; name: string; urn: string; sizeMB: number; }
+
 interface BimViewerProps {
   projectId: string; items: ProjectItem[]; selectedItemId: string | null;
   onSelectItem: (itemId: string) => void; onStatusChange: (itemId: string, newStatus: ItemStatus) => void;
@@ -48,6 +50,9 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<ProjectItem | null>(null);
   const [manualUrn, setManualUrn] = useState("");
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [showModels, setShowModels] = useState(false);
 
   // Load URN: server first, fallback to localStorage
   useEffect(() => {
@@ -208,16 +213,35 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
     e.target.value = "";
   }
 
+  async function fetchAvailableModels() {
+    setLoadingModels(true); setShowModels(true);
+    try {
+      const resp = await fetch(API_URL + "/api/available-models");
+      const data = await resp.json();
+      setAvailableModels(data.models || []);
+    } catch { setAvailableModels([]); }
+    setLoadingModels(false);
+  }
+
+  function selectExistingModel(model: AvailableModel) {
+    setLocalUrn(projectId, model.urn);
+    setUrn(model.urn);
+    fetch(API_URL + "/api/restore-urn/" + projectId, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urn: model.urn }),
+    }).catch(() => {});
+    setShowModels(false);
+  }
+
   function handleManualUrn() { const u = manualUrn.trim(); if (!u) return; setLocalUrn(projectId, u); setUrn(u); }
 
   if (!urn) {
     return (
-      <div className="glass-card flex flex-col items-center justify-center py-16 gap-4 max-w-lg mx-auto">
+      <div className="glass-card flex flex-col items-center justify-center py-12 gap-4 max-w-lg mx-auto">
         <div className="text-6xl font-bold text-primary/20">BIM</div>
         <h3 className="text-lg font-semibold">{"אין מודל BIM לפרויקט זה"}</h3>
-        <p className="text-sm text-muted-foreground">{"העלה קובץ RVT, STP או IFC"}</p>
+        <p className="text-sm text-muted-foreground">{"העלה קובץ חדש או בחר מדגם קיים"}</p>
 
-        {/* Error box */}
         {uploadError && (
           <div className="w-full bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-3 text-xs text-destructive text-right">
             <p className="font-semibold mb-1">{"שגיאה בהעלאה:"}</p>
@@ -225,15 +249,47 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
           </div>
         )}
 
-        <label className={"cursor-pointer px-6 py-2.5 rounded-lg text-sm font-medium transition-colors " + (uploading ? "bg-primary/50 text-primary-foreground cursor-wait" : "bg-primary text-primary-foreground hover:bg-primary/90")}>
-          {uploading ? uploadMsg : "העלה קובץ BIM"}
-          <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} disabled={uploading} />
-        </label>
+        <div className="flex gap-3 flex-wrap justify-center">
+          <label className={"cursor-pointer px-6 py-2.5 rounded-lg text-sm font-medium transition-colors " + (uploading ? "bg-primary/50 text-primary-foreground cursor-wait" : "bg-primary text-primary-foreground hover:bg-primary/90")}>
+            {uploading ? uploadMsg : "העלה קובץ BIM"}
+            <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} disabled={uploading} />
+          </label>
+          <button onClick={fetchAvailableModels} className="px-6 py-2.5 rounded-lg text-sm font-medium bg-secondary border border-border hover:bg-muted transition-colors">
+            {"בחר מדגם קיים"}
+          </button>
+        </div>
 
         {uploading && (
           <div className="w-64 space-y-1">
             <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: uploadPct + "%" }} /></div>
             <p className="text-xs text-center text-muted-foreground">{uploadMsg}</p>
+          </div>
+        )}
+
+        {showModels && (
+          <div className="w-full border border-border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-3 py-2 flex items-center justify-between">
+              <span className="text-xs font-semibold">{"דגמים מתורגמים זמינים"}</span>
+              <button onClick={() => setShowModels(false)} className="text-xs text-muted-foreground hover:text-foreground">{"סגור"}</button>
+            </div>
+            {loadingModels ? (
+              <div className="text-center py-6 text-xs text-muted-foreground">{"טוען רשימה..."}</div>
+            ) : availableModels.length === 0 ? (
+              <div className="text-center py-6 text-xs text-muted-foreground">{"לא נמצאו דגמים"}</div>
+            ) : (
+              <div className="divide-y divide-border max-h-60 overflow-y-auto">
+                {availableModels.map((m, i) => (
+                  <button key={i} onClick={() => selectExistingModel(m)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors text-right">
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="text-xs font-medium truncate max-w-[220px]">{m.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.bucket} · {m.sizeMB} MB</span>
+                    </div>
+                    <span className="text-xs text-primary font-medium mr-2">{"טען"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -262,10 +318,15 @@ export default function BimViewer({ projectId, items, selectedItemId, onSelectIt
               <span className="text-xs text-destructive">{transMsg}</span>
             </div>
           )}
-          <label className="absolute top-3 left-3 cursor-pointer bg-secondary/80 hover:bg-secondary backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors z-10">
-            {"החלף מודל"}
-            <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} />
-          </label>
+          <div className="absolute top-3 left-3 flex gap-2 z-10">
+            <label className="cursor-pointer bg-secondary/80 hover:bg-secondary backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
+              {"החלף מודל"}
+              <input type="file" accept=".rvt,.stp,.step,.ifc,.dwg,.ipt,.iam" className="hidden" onChange={handleUpload} />
+            </label>
+            <button onClick={() => { setUrn(null); setViewerLoaded(false); handlerSetRef.current = false; }} className="bg-secondary/80 hover:bg-secondary backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
+              {"בחר אחר"}
+            </button>
+          </div>
           <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur border border-border rounded-lg px-3 py-2 z-10">
             <p className="text-[10px] text-muted-foreground mb-1 font-semibold">{"מקרא"}</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
