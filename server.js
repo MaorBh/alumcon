@@ -163,6 +163,16 @@ app.get('/api/translate-status/:urn', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.post('/api/restore-urn/:projectId', (req, res) => {
+  const { urn } = req.body;
+  if (!urn) return res.status(400).json({ error: 'missing urn' });
+  const urns = loadUrns();
+  urns[req.params.projectId] = urn;
+  saveUrns(urns);
+  console.log('URN restored for', req.params.projectId);
+  res.json({ ok: true });
+});
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
   app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
