@@ -14,25 +14,30 @@ type QcDecision = "qc_pass" | "qc_reject" | "qc_final";
 
 const decisionMeta: Record<
   QcDecision,
-  { label: string; color: string; icon: typeof CheckCircle2; toast: string }
+  {
+    label: string;
+    icon: typeof CheckCircle2;
+    toast: string;
+    activeClass: string;
+  }
 > = {
   qc_pass: {
     label: "אישור תחנה",
-    color: "status-completed",
     icon: CheckCircle2,
     toast: "התחנה אושרה",
+    activeClass: "border-status-completed bg-status-completed/15 text-status-completed",
   },
   qc_reject: {
     label: "פסילה",
-    color: "status-rejected",
     icon: XCircle,
     toast: "הפריט נפסל",
+    activeClass: "border-status-rejected bg-status-rejected/15 text-status-rejected",
   },
   qc_final: {
     label: "אישור סופי",
-    color: "primary",
     icon: ShieldCheck,
     toast: "אישור QC סופי נרשם",
+    activeClass: "border-primary bg-primary/15 text-primary",
   },
 };
 
