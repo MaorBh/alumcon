@@ -130,7 +130,7 @@ export default function QcScan() {
                       onClick={() => setDecision(key)}
                       className={`h-14 rounded-xl border-2 flex items-center justify-center gap-2 font-bold transition ${
                         active
-                          ? `border-${meta.color} bg-${meta.color}/15 text-${meta.color}`
+                          ? meta.activeClass
                           : "border-border bg-background text-muted-foreground hover:border-foreground/40"
                       }`}
                     >
