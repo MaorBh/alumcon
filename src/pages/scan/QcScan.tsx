@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import ScanLayout from "@/scan/ScanLayout";
 import BarcodeInput from "@/scan/BarcodeInput";
 import ItemInfoCard from "@/scan/ItemInfoCard";
+import ExistingPhotos from "@/scan/ExistingPhotos";
 import PhotoCapture from "@/scan/PhotoCapture";
 import { getCurrentUser } from "@/scan/scanAuth";
 import { findItemByBarcode, recordQcScan } from "@/scan/scanData";
@@ -116,6 +117,7 @@ export default function QcScan() {
         {item && (
           <>
             <ItemInfoCard item={item} projectId={projectId} />
+            <ExistingPhotos itemId={item.id} />
 
             <div className="surface-card p-4 space-y-3">
               <div className="text-sm font-semibold">פעולת בקר</div>
