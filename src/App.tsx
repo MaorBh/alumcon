@@ -4,7 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
+import RequireAuth from "./components/RequireAuth";
+import { AuthProvider } from "./auth/AuthContext";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import Items from "./pages/Items";
@@ -22,29 +25,36 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Mobile scanner app - no AppLayout */}
-          <Route path="/scan/login" element={<ScanLogin />} />
-          <Route path="/scan/station" element={<StationScan />} />
-          <Route path="/scan/qc" element={<QcScan />} />
+        <AuthProvider>
+          <Routes>
+            {/* Public auth route */}
+            <Route path="/login" element={<Login />} />
 
-          {/* Main admin app */}
-          <Route
-            path="/*"
-            element={
-              <AppLayout>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/projects" element={<Projects />} />
-                  <Route path="/projects/:id" element={<ProjectDetail />} />
-                  <Route path="/items" element={<Items />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </AppLayout>
-            }
-          />
-        </Routes>
+            {/* Mobile scanner app - separate auth flow */}
+            <Route path="/scan/login" element={<ScanLogin />} />
+            <Route path="/scan/station" element={<StationScan />} />
+            <Route path="/scan/qc" element={<QcScan />} />
+
+            {/* Main admin app - protected */}
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/projects" element={<Projects />} />
+                      <Route path="/projects/:id" element={<ProjectDetail />} />
+                      <Route path="/items" element={<Items />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

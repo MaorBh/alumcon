@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Sun, Moon, Palette } from "lucide-react";
+import { Sun, Moon, Palette, Users } from "lucide-react";
+import UserManagement from "@/components/UserManagement";
+import { useAuth } from "@/auth/AuthContext";
 
 export default function Settings() {
-  const [isLight, setIsLight] = useState(() => {
-    return document.documentElement.classList.contains("light");
-  });
+  const { hasRole } = useAuth();
+  const [isLight, setIsLight] = useState(() => document.documentElement.classList.contains("light"));
 
   useEffect(() => {
     if (isLight) {
@@ -20,10 +21,10 @@ export default function Settings() {
   }, [isLight]);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="text-2xl font-bold">הגדרות כלליות</h2>
-        <p className="text-muted-foreground mt-1">ניהול העדפות המערכת</p>
+        <p className="text-muted-foreground mt-1">ניהול העדפות והרשאות המערכת</p>
       </div>
 
       <Card>
@@ -34,7 +35,7 @@ export default function Settings() {
           </CardTitle>
           <CardDescription>התאם את מראה המערכת להעדפותיך</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {isLight ? <Sun className="w-5 h-5 text-primary" /> : <Moon className="w-5 h-5 text-primary" />}
@@ -45,14 +46,24 @@ export default function Settings() {
                 </div>
               </Label>
             </div>
-            <Switch
-              id="theme-toggle"
-              checked={isLight}
-              onCheckedChange={setIsLight}
-            />
+            <Switch id="theme-toggle" checked={isLight} onCheckedChange={setIsLight} />
           </div>
         </CardContent>
       </Card>
+
+      {hasRole("admin") ? (
+        <UserManagement />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Users className="w-5 h-5" />
+              ניהול משתמשים
+            </CardTitle>
+            <CardDescription>אזור זה זמין למנהלים בלבד</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
