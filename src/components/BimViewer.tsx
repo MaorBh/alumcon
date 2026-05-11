@@ -378,30 +378,61 @@ export default function BimViewer({
     if (itemId) onStatusChange(itemId, newStatus);
   }
 
-  // ─── Upload ───────────────────────────────────────────────────────────────
+  // ─── Upload (with auto-retry on server failure / null URN) ───────────────
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
-    setUploading(true); setUploadError(""); setUploadPct(0); setUploadMsg("מעלה " + file.name + "...");
-    const formData = new FormData(); formData.append("model", file);
-    try {
-      const newUrn = await new Promise<string>((resolve, reject) => {
+    setUploading(true); setUploadError(""); setUploadPct(0);
+
+    const MAX_RETRIES = 3;
+
+    function attemptUpload(attempt: number): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const label = attempt > 1 ? ` (ניסיון ${attempt}/${MAX_RETRIES})` : "";
+        setUploadMsg("מעלה " + file.name + "..." + label);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", API_URL + "/api/upload-model/" + projectId);
+        xhr.timeout = 10 * 60 * 1000; // 10 min for large files / cold-start translation
         xhr.upload.onprogress = ev => {
-          if (ev.lengthComputable) { const pct = Math.round(ev.loaded / ev.total * 100); setUploadPct(pct); setUploadMsg("מעלה " + file.name + "... " + pct + "%"); }
+          if (ev.lengthComputable) {
+            const pct = Math.round(ev.loaded / ev.total * 100);
+            setUploadPct(pct);
+            setUploadMsg("מעלה " + file.name + "... " + pct + "%" + label);
+          }
         };
         xhr.onload = () => {
           try {
             const data = JSON.parse(xhr.responseText);
             if (data.urn) resolve(data.urn);
-            else reject(new Error(data.error || "שגיאת שרת"));
+            else reject(new Error(data.error || "URN ריק מהשרת"));
           } catch { reject(new Error("תגובה לא תקינה: " + xhr.responseText.substring(0, 150))); }
         };
-        xhr.onerror = () => reject(new Error("שגיאת רשת"));
+        xhr.onerror   = () => reject(new Error("שגיאת רשת"));
+        xhr.ontimeout = () => reject(new Error("פג זמן ההעלאה"));
         xhr.send(formData);
       });
-      setLocalUrn(projectId, newUrn); setUrn(newUrn); setUploading(false); setUploadMsg("");
-    } catch (err: any) { setUploadError(err.message); setUploading(false); }
+    }
+
+    const formData = new FormData(); formData.append("model", file);
+
+    let lastErr: any = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const newUrn = await attemptUpload(attempt);
+        setLocalUrn(projectId, newUrn); setUrn(newUrn);
+        setUploading(false); setUploadMsg(""); setUploadError("");
+        e.target.value = "";
+        return;
+      } catch (err: any) {
+        lastErr = err;
+        if (attempt < MAX_RETRIES) {
+          const wait = attempt * 3000;
+          setUploadMsg(`שגיאה: ${err.message} — ממתין ${wait/1000}ש לפני ניסיון חוזר...`);
+          await new Promise(r => setTimeout(r, wait));
+        }
+      }
+    }
+    setUploadError(`ההעלאה נכשלה לאחר ${MAX_RETRIES} ניסיונות: ${lastErr?.message || "שגיאה לא ידועה"}`);
+    setUploading(false);
     e.target.value = "";
   }
 
