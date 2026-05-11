@@ -51,6 +51,8 @@ export interface ImportedItem {
   floor?: number;
   unit?: number;
   side?: string;
+  width?: number;
+  height?: number;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
