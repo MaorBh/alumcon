@@ -95,22 +95,45 @@ export default function BimViewer({
   const [showModels, setShowModels]           = useState(false);
   const [manualUrn, setManualUrn]             = useState("");
 
-  // ─── URN init ─────────────────────────────────────────────────────────────
+  // ─── URN init (with retry on cold-start / null URN) ──────────────────────
   useEffect(() => {
     const local = getLocalUrn(projectId);
     if (local) setUrn(local);
-    fetch(API_URL + "/api/project-urn/" + projectId)
-      .then(r => r.json())
-      .then(d => {
-        if (d.urn) { setUrn(d.urn); setLocalUrn(projectId, d.urn); }
-        else if (local) {
-          fetch(API_URL + "/api/restore-urn/" + projectId, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ urn: local }),
-          }).catch(() => {});
-        }
-      })
-      .catch(() => { if (local) setUrn(local); });
+
+    let cancelled = false;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 6; // ~ up to ~60s for Render cold start
+
+    async function fetchUrnWithRetry() {
+      while (!cancelled && attempt < MAX_ATTEMPTS) {
+        attempt++;
+        try {
+          const r = await fetch(API_URL + "/api/project-urn/" + projectId);
+          const d = await r.json();
+          if (d.urn) {
+            if (!cancelled) { setUrn(d.urn); setLocalUrn(projectId, d.urn); }
+            return;
+          }
+          // URN is null on server — try to restore from local cache
+          if (local) {
+            try {
+              await fetch(API_URL + "/api/restore-urn/" + projectId, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ urn: local }),
+              });
+              if (!cancelled) setUrn(local);
+              return;
+            } catch { /* retry */ }
+          }
+        } catch { /* network/server down — retry */ }
+        // Backoff: 2s, 4s, 6s, 8s, 10s, 12s
+        await new Promise(res => setTimeout(res, attempt * 2000));
+      }
+      if (!cancelled && local) setUrn(local);
+    }
+
+    fetchUrnWithRetry();
+    return () => { cancelled = true; };
   }, [projectId]);
 
   // ─── Viewer init ──────────────────────────────────────────────────────────
@@ -177,13 +200,26 @@ export default function BimViewer({
     pollTranslation(modelUrn);
   }
 
-  async function pollTranslation(modelUrn: string) {
+  async function pollTranslation(modelUrn: string, failCount = 0) {
     try {
       const s = await fetch(API_URL + "/api/translate-status/" + encodeURIComponent(modelUrn)).then(r => r.json());
       if (s.status === "success") { setTranslating(false); setTransMsg(""); startLoadingModel(modelUrn); }
-      else if (s.status === "failed") { setTranslating(false); setTransMsg("שגיאה בהמרה"); }
-      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn), 4000); }
-    } catch { setTranslating(false); setTransMsg("שגיאה בבדיקת סטטוס"); }
+      else if (s.status === "failed") {
+        // Auto-retry translation up to 3 times before giving up
+        if (failCount < 3) {
+          setTransMsg(`המרה נכשלה — מנסה שוב (${failCount + 1}/3)...`);
+          setTimeout(() => pollTranslation(modelUrn, failCount + 1), 5000);
+        } else {
+          setTranslating(false); setTransMsg("שגיאה בהמרה — נסה להעלות שוב");
+        }
+      }
+      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn, failCount), 4000); }
+    } catch {
+      // Network / server error — retry indefinitely with backoff (server cold start)
+      const wait = Math.min(15000, 3000 + failCount * 2000);
+      setTransMsg(`ממתין לשרת... (ניסיון ${failCount + 1})`);
+      setTimeout(() => pollTranslation(modelUrn, failCount + 1), wait);
+    }
   }
 
   function startLoadingModel(modelUrn: string) {
@@ -342,30 +378,61 @@ export default function BimViewer({
     if (itemId) onStatusChange(itemId, newStatus);
   }
 
-  // ─── Upload ───────────────────────────────────────────────────────────────
+  // ─── Upload (with auto-retry on server failure / null URN) ───────────────
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
-    setUploading(true); setUploadError(""); setUploadPct(0); setUploadMsg("מעלה " + file.name + "...");
-    const formData = new FormData(); formData.append("model", file);
-    try {
-      const newUrn = await new Promise<string>((resolve, reject) => {
+    setUploading(true); setUploadError(""); setUploadPct(0);
+
+    const MAX_RETRIES = 3;
+
+    function attemptUpload(attempt: number): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const label = attempt > 1 ? ` (ניסיון ${attempt}/${MAX_RETRIES})` : "";
+        setUploadMsg("מעלה " + file.name + "..." + label);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", API_URL + "/api/upload-model/" + projectId);
+        xhr.timeout = 10 * 60 * 1000; // 10 min for large files / cold-start translation
         xhr.upload.onprogress = ev => {
-          if (ev.lengthComputable) { const pct = Math.round(ev.loaded / ev.total * 100); setUploadPct(pct); setUploadMsg("מעלה " + file.name + "... " + pct + "%"); }
+          if (ev.lengthComputable) {
+            const pct = Math.round(ev.loaded / ev.total * 100);
+            setUploadPct(pct);
+            setUploadMsg("מעלה " + file.name + "... " + pct + "%" + label);
+          }
         };
         xhr.onload = () => {
           try {
             const data = JSON.parse(xhr.responseText);
             if (data.urn) resolve(data.urn);
-            else reject(new Error(data.error || "שגיאת שרת"));
+            else reject(new Error(data.error || "URN ריק מהשרת"));
           } catch { reject(new Error("תגובה לא תקינה: " + xhr.responseText.substring(0, 150))); }
         };
-        xhr.onerror = () => reject(new Error("שגיאת רשת"));
+        xhr.onerror   = () => reject(new Error("שגיאת רשת"));
+        xhr.ontimeout = () => reject(new Error("פג זמן ההעלאה"));
         xhr.send(formData);
       });
-      setLocalUrn(projectId, newUrn); setUrn(newUrn); setUploading(false); setUploadMsg("");
-    } catch (err: any) { setUploadError(err.message); setUploading(false); }
+    }
+
+    const formData = new FormData(); formData.append("model", file);
+
+    let lastErr: any = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const newUrn = await attemptUpload(attempt);
+        setLocalUrn(projectId, newUrn); setUrn(newUrn);
+        setUploading(false); setUploadMsg(""); setUploadError("");
+        e.target.value = "";
+        return;
+      } catch (err: any) {
+        lastErr = err;
+        if (attempt < MAX_RETRIES) {
+          const wait = attempt * 3000;
+          setUploadMsg(`שגיאה: ${err.message} — ממתין ${wait/1000}ש לפני ניסיון חוזר...`);
+          await new Promise(r => setTimeout(r, wait));
+        }
+      }
+    }
+    setUploadError(`ההעלאה נכשלה לאחר ${MAX_RETRIES} ניסיונות: ${lastErr?.message || "שגיאה לא ידועה"}`);
+    setUploading(false);
     e.target.value = "";
   }
 
