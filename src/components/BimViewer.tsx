@@ -443,6 +443,8 @@ export default function BimViewer({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true); setUploadError(""); setUploadPct(0);
+    setAttempts([]); setBackoffUntil(null);
+    pushAttempt("info", `מתחיל העלאה: ${file.name} (${(file.size/1048576).toFixed(1)} MB)`);
 
     const MAX_RETRIES = 3;
 
@@ -452,7 +454,7 @@ export default function BimViewer({
         setUploadMsg("מעלה " + file.name + "..." + label);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", API_URL + "/api/upload-model/" + projectId);
-        xhr.timeout = 10 * 60 * 1000; // 10 min for large files / cold-start translation
+        xhr.timeout = 10 * 60 * 1000;
         xhr.upload.onprogress = ev => {
           if (ev.lengthComputable) {
             const pct = Math.round(ev.loaded / ev.total * 100);
@@ -477,23 +479,32 @@ export default function BimViewer({
 
     let lastErr: any = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      pushAttempt("info", `ניסיון העלאה ${attempt}/${MAX_RETRIES}`);
       try {
         const newUrn = await attemptUpload(attempt);
+        pushAttempt("ok", `העלאה הושלמה — URN התקבל`);
         setLocalUrn(projectId, newUrn); setUrn(newUrn);
         setUploading(false); setUploadMsg(""); setUploadError("");
+        setBackoffUntil(null);
         e.target.value = "";
         return;
       } catch (err: any) {
         lastErr = err;
+        pushAttempt("error", `ניסיון ${attempt} נכשל: ${err.message}`);
         if (attempt < MAX_RETRIES) {
           const wait = attempt * 3000;
-          setUploadMsg(`שגיאה: ${err.message} — ממתין ${wait/1000}ש לפני ניסיון חוזר...`);
+          pushAttempt("warn", `המתנה ${wait/1000}ש לפני ניסיון חוזר`);
+          setBackoffUntil(Date.now() + wait);
+          setUploadMsg(`שגיאה: ${err.message}`);
           await new Promise(r => setTimeout(r, wait));
+          setBackoffUntil(null);
         }
       }
     }
+    pushAttempt("error", `ההעלאה נכשלה סופית לאחר ${MAX_RETRIES} ניסיונות`);
     setUploadError(`ההעלאה נכשלה לאחר ${MAX_RETRIES} ניסיונות: ${lastErr?.message || "שגיאה לא ידועה"}`);
     setUploading(false);
+    setBackoffUntil(null);
     e.target.value = "";
   }
 
