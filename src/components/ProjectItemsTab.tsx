@@ -40,6 +40,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
   const [, setRefreshKey] = useState(0);
+  const [photosFor, setPhotosFor] = useState<{ itemId: string; barcode: string } | null>(null);
 
   const filtered = useMemo(() => {
     return items.filter(item => {
