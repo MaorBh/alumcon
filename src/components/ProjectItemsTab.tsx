@@ -1,10 +1,9 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { STATIONS, ItemStatus, ProjectItem, updateItemStatus } from "@/data/mockData";
+import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import { Search } from "lucide-react";
-
-type QcStatus = "not_checked" | "approved" | "failed";
+import { useAuth } from "@/auth/AuthContext";
 
 const qcLabel: Record<QcStatus, string> = {
   not_checked: "טרם נבדק",
@@ -19,6 +18,12 @@ const STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
   { value: "rejected", label: "נפסל" },
 ];
 
+const QC_OPTIONS: { value: QcStatus; label: string }[] = [
+  { value: "not_checked", label: "טרם נבדק" },
+  { value: "approved", label: "אושר QC" },
+  { value: "failed", label: "נכשל QC" },
+];
+
 function getQcStatus(item: ProjectItem): QcStatus {
   if (item.qcApproved) return "approved";
   if (item.stationHistory.some(h => h.result === "fail")) return "failed";
@@ -27,6 +32,8 @@ function getQcStatus(item: ProjectItem): QcStatus {
 
 export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
   const { id: projectId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const canEditQc = user?.role === "qc" || user?.role === "admin";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
@@ -46,6 +53,15 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
     updateItemStatus(projectId, itemId, newStatus);
     setRefreshKey(k => k + 1);
   };
+
+  const handleQcChange = (itemId: string, newQc: QcStatus) => {
+    if (!projectId) return;
+    updateItemQc(projectId, itemId, newQc);
+    setRefreshKey(k => k + 1);
+  };
+
+  const selectClass =
+    "h-8 min-w-[120px] bg-background/60 border border-border rounded-md px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition";
 
   return (
     <div className="space-y-4">
@@ -101,7 +117,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                 const currentStationName = STATIONS.find(s => s.id === item.currentStation)?.name || "-";
                 const qcStatus = getQcStatus(item);
                 return (
-                  <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors align-middle">
                     <td className="px-4 py-3 font-inter text-xs font-mono">{item.barcode}</td>
                     <td className="px-4 py-3 text-xs">{item.type}</td>
                     <td className="px-4 py-3 text-xs">{item.side}</td>
@@ -114,7 +130,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                         <select
                           value={item.status}
                           onChange={e => handleStatusChange(item.id, e.target.value as ItemStatus)}
-                          className="h-7 bg-background/60 border border-border rounded px-2 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+                          className={selectClass}
                           aria-label="עדכון סטטוס"
                         >
                           {STATUS_OPTIONS.map(o => (
@@ -124,10 +140,24 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium ${
-                        qcStatus === "approved" ? "text-status-completed" :
-                        qcStatus === "failed" ? "text-status-rejected" : "text-muted-foreground"
-                      }`}>{qcLabel[qcStatus]}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-medium whitespace-nowrap ${
+                          qcStatus === "approved" ? "text-status-completed" :
+                          qcStatus === "failed" ? "text-status-rejected" : "text-muted-foreground"
+                        }`}>{qcLabel[qcStatus]}</span>
+                        {canEditQc && (
+                          <select
+                            value={qcStatus}
+                            onChange={e => handleQcChange(item.id, e.target.value as QcStatus)}
+                            className={selectClass}
+                            aria-label="עדכון QC"
+                          >
+                            {QC_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

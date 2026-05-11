@@ -250,3 +250,29 @@ export function updateItemStatus(projectId: string, itemId: string, newStatus: I
     project.completedItems = items.filter(i => i.status === 'completed').length;
   }
 }
+
+export type QcStatus = 'not_checked' | 'approved' | 'failed';
+
+export function updateItemQc(projectId: string, itemId: string, qc: QcStatus) {
+  const items = PROJECT_ITEMS[projectId];
+  if (!items) return;
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  if (qc === 'approved') {
+    item.qcApproved = true;
+    item.stationHistory = item.stationHistory.filter(h => h.result !== 'fail');
+  } else if (qc === 'failed') {
+    item.qcApproved = false;
+    if (!item.stationHistory.some(h => h.result === 'fail')) {
+      item.stationHistory.push({
+        station: item.currentStation || 'cnc',
+        timestamp: new Date().toISOString(),
+        result: 'fail',
+        notes: 'סומן כנכשל ידנית',
+      });
+    }
+  } else {
+    item.qcApproved = false;
+    item.stationHistory = item.stationHistory.filter(h => h.result !== 'fail');
+  }
+}
