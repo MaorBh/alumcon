@@ -80,14 +80,14 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
     <div className="space-y-4">
       {/* Filters */}
       <div className="surface-card p-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="relative w-[200px]">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="חיפוש לפי ברקוד..."
+            placeholder="חיפוש ברקוד..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full h-10 bg-background/60 border border-border rounded-lg pr-10 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+            className="w-full h-10 bg-background/60 border border-border rounded-lg pr-10 pl-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
           />
         </div>
         <select
@@ -108,6 +108,36 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           <option value="all">כל התחנות</option>
           {STATIONS.map(s => (
             <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <select
+          value={sideFilter}
+          onChange={e => setSideFilter(e.target.value)}
+          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+        >
+          <option value="all">כל החזיתות</option>
+          {sides.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          value={floorFilter}
+          onChange={e => setFloorFilter(e.target.value)}
+          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+        >
+          <option value="all">כל הקומות</option>
+          {floors.map(f => (
+            <option key={f} value={String(f)}>קומה {f}</option>
+          ))}
+        </select>
+        <select
+          value={unitFilter}
+          onChange={e => setUnitFilter(e.target.value)}
+          className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+        >
+          <option value="all">כל המיקומים</option>
+          {units.map(u => (
+            <option key={u} value={String(u)}>מיקום {u}</option>
           ))}
         </select>
         <span className="text-xs text-muted-foreground mr-auto">
