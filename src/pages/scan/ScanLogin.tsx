@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { LogIn } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { LogIn, Download } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { getCurrentUser, login, SCAN_USERS } from "@/scan/scanAuth";
 import { toast } from "sonner";
