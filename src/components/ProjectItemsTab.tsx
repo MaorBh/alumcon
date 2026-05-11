@@ -109,7 +109,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {["ברקוד", "סוג", "חזית", "קומה", "מיקום", "תחנה נוכחית", "סטטוס", "QC"].map(h => (
+                {["ברקוד", "סוג", "חזית", "קומה", "מיקום", "תחנה נוכחית", "סטטוס", "QC", "תמונות"].map(h => (
                   <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
                 ))}
               </tr>
