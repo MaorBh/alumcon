@@ -13,6 +13,7 @@ import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import Items from "./pages/Items";
 import Settings from "./pages/Settings";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import ScanLogin from "./pages/scan/ScanLogin";
 import ScanInstall from "./pages/scan/ScanInstall";
@@ -50,6 +51,7 @@ const App = () => (
                         <Route path="/projects" element={<Projects />} />
                         <Route path="/projects/:id" element={<ProjectDetail />} />
                         <Route path="/items" element={<Items />} />
+                        <Route path="/reports" element={<Reports />} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
