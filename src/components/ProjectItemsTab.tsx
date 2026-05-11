@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { STATIONS, ItemStatus, ProjectItem } from "@/data/mockData";
+import { useParams } from "react-router-dom";
+import { STATIONS, ItemStatus, ProjectItem, updateItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import { Search } from "lucide-react";
 
@@ -11,6 +12,13 @@ const qcLabel: Record<QcStatus, string> = {
   failed: "נכשל QC",
 };
 
+const STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
+  { value: "pending", label: "ממתין" },
+  { value: "in_progress", label: "בתהליך" },
+  { value: "completed", label: "הושלם" },
+  { value: "rejected", label: "נפסל" },
+];
+
 function getQcStatus(item: ProjectItem): QcStatus {
   if (item.qcApproved) return "approved";
   if (item.stationHistory.some(h => h.result === "fail")) return "failed";
@@ -18,9 +26,11 @@ function getQcStatus(item: ProjectItem): QcStatus {
 }
 
 export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
+  const { id: projectId } = useParams<{ id: string }>();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
+  const [, setRefreshKey] = useState(0);
 
   const filtered = useMemo(() => {
     return items.filter(item => {
@@ -30,6 +40,12 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
       return matchSearch && matchStatus && matchStation;
     }).slice(0, 100);
   }, [items, search, statusFilter, stationFilter]);
+
+  const handleStatusChange = (itemId: string, newStatus: ItemStatus) => {
+    if (!projectId) return;
+    updateItemStatus(projectId, itemId, newStatus);
+    setRefreshKey(k => k + 1);
+  };
 
   return (
     <div className="space-y-4">
@@ -51,10 +67,9 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
         >
           <option value="all">כל הסטטוסים</option>
-          <option value="pending">ממתין</option>
-          <option value="in_progress">בתהליך</option>
-          <option value="completed">הושלם</option>
-          <option value="rejected">נפסל</option>
+          {STATUS_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
         <select
           value={stationFilter}
@@ -76,7 +91,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {["ברקוד", "סוג", "חזית", "קומה", "יחידה", "תחנה נוכחית", "סטטוס", "QC"].map(h => (
+                {["ברקוד", "סוג", "חזית", "קומה", "מיקום", "תחנה נוכחית", "סטטוס", "QC"].map(h => (
                   <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
                 ))}
               </tr>
@@ -93,7 +108,21 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                     <td className="px-4 py-3 text-xs font-inter tabular-nums">{item.floor}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums">{item.unit}</td>
                     <td className="px-4 py-3 text-xs">{currentStationName}</td>
-                    <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={item.status} />
+                        <select
+                          value={item.status}
+                          onChange={e => handleStatusChange(item.id, e.target.value as ItemStatus)}
+                          className="h-7 bg-background/60 border border-border rounded px-2 text-[11px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+                          aria-label="עדכון סטטוס"
+                        >
+                          {STATUS_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium ${
                         qcStatus === "approved" ? "text-status-completed" :
