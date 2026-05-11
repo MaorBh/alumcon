@@ -5,7 +5,7 @@ import ProjectItemsTab from "@/components/ProjectItemsTab";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
 import BimViewer from "@/components/BimViewer";
-import { ArrowRight, Building2, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, Grid3X3, List, Settings, Box } from "lucide-react";
+import { ArrowRight, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, List, Settings, Box } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 
 const statusToColor: Record<ItemStatus, string> = {
