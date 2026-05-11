@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Upload, ChevronLeft, ChevronRight, FolderKanban, Building2, FileSpreadsheet, Check } from "lucide-react";
-import { STATIONS, type StationId } from "@/data/mockData";
+import { STATIONS, type StationId, type ImportedItem } from "@/data/mockData";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 const ALL_SIDES = ["S-South", "S-East", "S-North", "S-West"];
 
@@ -20,6 +21,7 @@ interface ProjectFormData {
   unitsPerFloor: Record<string, number>;
   enabledStations: StationId[];
   file: File | null;
+  parsedItems: ImportedItem[];
 }
 
 const STEPS = ["פרטי פרויקט", "הגדרת מבנה", "תחנות ייצור", "העלאת קובץ", "סיכום"];
@@ -30,8 +32,64 @@ interface Props {
   onProjectCreated: (data: ProjectFormData) => void;
 }
 
+// Detect column name (Hebrew + English variants)
+function detectColumn(headers: string[], candidates: string[]): string | undefined {
+  const lower = headers.map(h => h?.toString().trim().toLowerCase());
+  for (const c of candidates) {
+    const idx = lower.indexOf(c.toLowerCase());
+    if (idx !== -1) return headers[idx];
+  }
+  return undefined;
+}
+
+async function parseExcelFile(file: File): Promise<ImportedItem[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        if (rows.length === 0) { resolve([]); return; }
+
+        const headers = Object.keys(rows[0]);
+        const colIfcGuid = detectColumn(headers, ["IfcGUID", "ifcguid", "GlobalId", "globalid", "GUID", "guid", "IFC GUID"]);
+        const colFloor   = detectColumn(headers, ["קומה", "Floor", "floor", "FLOOR", "Koma"]);
+        const colUnit    = detectColumn(headers, ["יחידה", "Unit", "unit", "UNIT", "דירה"]);
+        const colSide    = detectColumn(headers, ["חזית", "Side", "side", "SIDE", "Facade"]);
+        const colType    = detectColumn(headers, ["סוג", "Type", "type", "TYPE", "Category"]);
+        const colBarcode = detectColumn(headers, ["ברקוד", "Barcode", "barcode", "BARCODE", "Code"]);
+
+        const items: ImportedItem[] = rows
+          .map(row => {
+            const ifcGuid = colIfcGuid ? String(row[colIfcGuid] ?? "").trim() : "";
+            if (!ifcGuid) return null;
+            return {
+              ifcGuid,
+              barcode: colBarcode ? String(row[colBarcode] ?? "").trim() || undefined : undefined,
+              type:    colType    ? String(row[colType]    ?? "").trim() || undefined : undefined,
+              floor:   colFloor   ? (Number(row[colFloor]) || undefined)               : undefined,
+              unit:    colUnit    ? (Number(row[colUnit])  || undefined)               : undefined,
+              side:    colSide    ? String(row[colSide]    ?? "").trim() || undefined : undefined,
+            } as ImportedItem;
+          })
+          .filter((item): item is ImportedItem => item !== null);
+
+        resolve(items);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export default function CreateProjectDialog({ open, onOpenChange, onProjectCreated }: Props) {
   const [step, setStep] = useState(0);
+  const [parsing, setParsing] = useState(false);
   const [form, setForm] = useState<ProjectFormData>({
     name: "",
     description: "",
@@ -41,6 +99,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     unitsPerFloor: { "S-South": 10, "S-East": 8, "S-North": 8, "S-West": 10 },
     enabledStations: STATIONS.map(s => s.id),
     file: null,
+    parsedItems: [],
   });
 
   const reset = () => {
@@ -54,6 +113,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
       unitsPerFloor: { "S-South": 10, "S-East": 8, "S-North": 8, "S-West": 10 },
       enabledStations: STATIONS.map(s => s.id),
       file: null,
+      parsedItems: [],
     });
   };
 
@@ -69,6 +129,25 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     toast.success(`פרויקט "${form.name}" נוצר בהצלחה`);
     reset();
     onOpenChange(false);
+  };
+
+  const handleFileChange = async (f: File | null) => {
+    setForm(prev => ({ ...prev, file: f, parsedItems: [] }));
+    if (!f) return;
+    setParsing(true);
+    try {
+      const items = await parseExcelFile(f);
+      setForm(prev => ({ ...prev, parsedItems: items }));
+      if (items.length > 0) {
+        toast.success(`נמצאו ${items.length} פריטים עם IfcGUID בקובץ`);
+      } else {
+        toast.warning("לא נמצאו פריטים עם IfcGUID בקובץ — ודא שהעמודה נקראת IfcGUID או GlobalId");
+      }
+    } catch {
+      toast.error("שגיאה בקריאת הקובץ");
+    } finally {
+      setParsing(false);
+    }
   };
 
   const toggleSide = (side: string) => {
@@ -248,7 +327,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
               <FileSpreadsheet className="w-4 h-4" /> העלאת קובץ פריטים (Excel / CSV)
             </Label>
             <p className="text-xs text-muted-foreground">
-              ניתן להעלות קובץ עם רשימת פריטים לפרויקט. הקובץ צריך לכלול עמודות: סוג, קומה, יחידה, חזית.
+              העלה קובץ Excel עם עמודת <strong>IfcGUID</strong> (או GlobalId) לשיוך אוטומטי בין פריטי הפרויקט למודל BIM.
+              עמודות נוספות שנתמכות: קומה, יחידה, חזית, סוג, ברקוד.
             </p>
             <label
               className={`flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
@@ -262,21 +342,29 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 <div className="text-center">
                   <p className="text-sm font-medium">{form.file.name}</p>
                   <p className="text-xs text-muted-foreground">{(form.file.size / 1024).toFixed(1)} KB</p>
+                  {parsing && <p className="text-xs text-primary mt-1">מנתח קובץ...</p>}
+                  {!parsing && form.parsedItems.length > 0 && (
+                    <p className="text-xs text-green-600 mt-1 font-medium">
+                      ✓ {form.parsedItems.length} פריטים עם IfcGUID זוהו
+                    </p>
+                  )}
+                  {!parsing && form.file && form.parsedItems.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      ⚠ לא נמצאו פריטים עם IfcGUID
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">לחץ לבחירת קובץ</p>
-                  <p className="text-xs text-muted-foreground">.xlsx, .csv</p>
+                  <p className="text-xs text-muted-foreground">.xlsx, .xls, .csv</p>
                 </div>
               )}
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 className="hidden"
-                onChange={e => {
-                  const f = e.target.files?.[0] || null;
-                  setForm(prev => ({ ...prev, file: f }));
-                }}
+                onChange={e => handleFileChange(e.target.files?.[0] || null)}
               />
             </label>
             <p className="text-xs text-muted-foreground">* שלב זה אופציונלי. ניתן להוסיף פריטים גם לאחר הקמת הפרויקט.</p>
@@ -313,12 +401,19 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 <span className="text-sm text-muted-foreground">קובץ</span>
                 <span className="text-sm">{form.file ? form.file.name : "לא הועלה"}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">סה״כ פריטים (משוער)</span>
-                <span className="text-sm font-inter font-bold text-primary">
-                  {form.sides.reduce((sum, side) => sum + (form.unitsPerFloor[side] || 1) * (form.floorTo - form.floorFrom + 1), 0)}
-                </span>
-              </div>
+              {form.parsedItems.length > 0 ? (
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">פריטים מהקובץ</span>
+                  <span className="text-sm font-inter font-bold text-primary">{form.parsedItems.length}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">סה״כ פריטים (משוער)</span>
+                  <span className="text-sm font-inter font-bold text-primary">
+                    {form.sides.reduce((sum, side) => sum + (form.unitsPerFloor[side] || 1) * (form.floorTo - form.floorFrom + 1), 0)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
