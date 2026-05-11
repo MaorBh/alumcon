@@ -2,7 +2,9 @@ import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
-import { Search } from "lucide-react";
+import ItemPhotosDialog from "@/components/ItemPhotosDialog";
+import { SCAN_LOG } from "@/scan/scanData";
+import { Search, ImageIcon } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 
 const qcLabel: Record<QcStatus, string> = {
