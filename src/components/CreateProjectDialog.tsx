@@ -55,12 +55,40 @@ async function parseExcelFile(file: File): Promise<ImportedItem[]> {
         if (rows.length === 0) { resolve([]); return; }
 
         const headers = Object.keys(rows[0]);
-        const colIfcGuid = detectColumn(headers, ["IfcGUID", "ifcguid", "GlobalId", "globalid", "GUID", "guid", "IFC GUID"]);
-        const colFloor   = detectColumn(headers, ["קומה", "Floor", "floor", "FLOOR", "Koma"]);
-        const colUnit    = detectColumn(headers, ["יחידה", "Unit", "unit", "UNIT", "דירה"]);
+        // IfcGUID – primary BIM linkage key
+        const colIfcGuid = detectColumn(headers, [
+          "IfcGUID", "ifcguid", "IFCGUID", "IFC GUID",
+          "GlobalId", "globalid", "GLOBALID",
+          "GUID", "guid",
+        ]);
+        // Floor / קומה
+        const colFloor   = detectColumn(headers, ["Floor", "קומה", "FLOOR", "floor", "Koma"]);
+        // Unit identifier / מזהה יחידה
+        const colUnit    = detectColumn(headers, [
+          "UNIT_ID", "מזהה", "Unit", "יחידה",
+          "UNIT_NAME", "שם היחידה", "unit", "UNIT", "דירה",
+        ]);
+        // Facade / חזית
         const colSide    = detectColumn(headers, ["חזית", "Side", "side", "SIDE", "Facade"]);
-        const colType    = detectColumn(headers, ["סוג", "Type", "type", "TYPE", "Category"]);
-        const colBarcode = detectColumn(headers, ["ברקוד", "Barcode", "barcode", "BARCODE", "Code"]);
+        // Element type / סוג
+        const colType    = detectColumn(headers, [
+          "TYPE", "סוג", "Type", "type", "Window", "חלון", "Category",
+        ]);
+        // Barcode / ברקוד  (fallback: UNIT_ID / מזהה)
+        const colBarcode = detectColumn(headers, [
+          "Barcode", "ברקוד", "barcode", "BARCODE",
+          "UNIT_ID", "מזהה", "Code",
+        ]);
+        // Width / אורך
+        const colWidth   = detectColumn(headers, ["WIDTH", "אורך", "Width", "width"]);
+        // Height / גובה
+        const colHeight  = detectColumn(headers, ["HEIGHT", "גובה", "Height", "height"]);
+
+        // Helper: extract numeric part from a value like "קומה 3" or "Floor 3" or just "3"
+        const toNum = (v: unknown): number | undefined => {
+          const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+          return isNaN(n) || n === 0 ? undefined : n;
+        };
 
         const items: ImportedItem[] = rows
           .map(row => {
@@ -70,9 +98,11 @@ async function parseExcelFile(file: File): Promise<ImportedItem[]> {
               ifcGuid,
               barcode: colBarcode ? String(row[colBarcode] ?? "").trim() || undefined : undefined,
               type:    colType    ? String(row[colType]    ?? "").trim() || undefined : undefined,
-              floor:   colFloor   ? (Number(row[colFloor]) || undefined)               : undefined,
-              unit:    colUnit    ? (Number(row[colUnit])  || undefined)               : undefined,
+              floor:   colFloor   ? toNum(row[colFloor])                              : undefined,
+              unit:    colUnit    ? toNum(row[colUnit])                               : undefined,
               side:    colSide    ? String(row[colSide]    ?? "").trim() || undefined : undefined,
+              width:   colWidth   ? toNum(row[colWidth])                              : undefined,
+              height:  colHeight  ? toNum(row[colHeight])                             : undefined,
             } as ImportedItem;
           })
           .filter((item): item is ImportedItem => item !== null);
