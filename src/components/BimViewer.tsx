@@ -214,30 +214,73 @@ export default function BimViewer({
 
   // ─── Translation polling ──────────────────────────────────────────────────
   function loadModel(modelUrn: string) {
-    setTranslating(true); setTransMsg("בודק סטטוס המרה...");
+    setTranslating(true);
+    setTransMsg("בודק סטטוס המרה...");
+    setTransProgress(0);
+    setTransStartTs(Date.now());
+    setTransEtaSec(null);
+    setBackoffUntil(null);
+    setAttempts([]);
+    pushAttempt("info", "מתחיל בדיקת סטטוס המרה");
     pollTranslation(modelUrn);
   }
+
+  // Track previous progress sample for ETA calculation
+  const lastProgressRef = useRef<{ pct: number; ts: number } | null>(null);
 
   async function pollTranslation(modelUrn: string, failCount = 0) {
     try {
       const s = await fetch(API_URL + "/api/translate-status/" + encodeURIComponent(modelUrn)).then(r => r.json());
-      if (s.status === "success") { setTranslating(false); setTransMsg(""); startLoadingModel(modelUrn); }
-      else if (s.status === "failed") {
-        // Auto-retry translation up to 3 times before giving up
+      if (s.status === "success") {
+        pushAttempt("ok", "המרה הושלמה — טוען מודל");
+        setTransProgress(100); setTransEtaSec(0);
+        setTranslating(false); setTransMsg(""); setBackoffUntil(null);
+        startLoadingModel(modelUrn);
+      } else if (s.status === "failed") {
         if (failCount < 3) {
+          const wait = 5000;
+          pushAttempt("warn", `המרה נכשלה — ניסיון חוזר ${failCount + 1}/3 בעוד ${wait/1000}ש`);
           setTransMsg(`המרה נכשלה — מנסה שוב (${failCount + 1}/3)...`);
-          setTimeout(() => pollTranslation(modelUrn, failCount + 1), 5000);
+          setBackoffUntil(Date.now() + wait);
+          setTimeout(() => { setBackoffUntil(null); pollTranslation(modelUrn, failCount + 1); }, wait);
         } else {
+          pushAttempt("error", "ההמרה נכשלה לאחר 3 ניסיונות");
           setTranslating(false); setTransMsg("שגיאה בהמרה — נסה להעלות שוב");
+          setBackoffUntil(null);
         }
+      } else {
+        const pct = parseInt(s.progress) || 0;
+        const now = Date.now();
+        // Estimate ETA from progress rate
+        const prev = lastProgressRef.current;
+        if (prev && pct > prev.pct) {
+          const dPct = pct - prev.pct;
+          const dSec = (now - prev.ts) / 1000;
+          const rate = dPct / dSec; // pct per second
+          if (rate > 0) setTransEtaSec(Math.max(1, Math.round((100 - pct) / rate)));
+        } else if (!prev && transStartTs && pct > 0) {
+          const elapsedSec = (now - transStartTs) / 1000;
+          if (elapsedSec > 0) setTransEtaSec(Math.round((100 - pct) / (pct / elapsedSec)));
+        }
+        if (!prev || pct !== prev.pct) {
+          lastProgressRef.current = { pct, ts: now };
+          if (pct === 0 || pct % 10 === 0 || (prev && pct - prev.pct >= 10)) {
+            pushAttempt("info", `התקדמות המרה: ${pct}%`);
+          }
+        }
+        setTransProgress(pct);
+        setTransMsg("ממיר מודל... " + pct + "%");
+        if (failCount > 0) setBackoffUntil(null);
+        setTimeout(() => pollTranslation(modelUrn, 0), 4000);
       }
-      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn, failCount), 4000); }
     } catch {
-      // Network / server error — retry indefinitely with backoff (server cold start)
       const wait = Math.min(15000, 3000 + failCount * 2000);
+      pushAttempt("warn", `שרת לא זמין — ניסיון חוזר ${failCount + 1} בעוד ${Math.round(wait/1000)}ש`);
       setTransMsg(`ממתין לשרת... (ניסיון ${failCount + 1})`);
-      setTimeout(() => pollTranslation(modelUrn, failCount + 1), wait);
+      setBackoffUntil(Date.now() + wait);
+      setTimeout(() => { setBackoffUntil(null); pollTranslation(modelUrn, failCount + 1); }, wait);
     }
+  }
   }
 
   function startLoadingModel(modelUrn: string) {
