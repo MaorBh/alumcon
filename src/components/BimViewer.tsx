@@ -86,8 +86,26 @@ export default function BimViewer({
   const [translating, setTranslating] = useState(false);
   const [transProgress, setTransProgress] = useState(0);
   const [transMsg, setTransMsg]       = useState("");
+  const [transStartTs, setTransStartTs] = useState<number | null>(null);
+  const [transEtaSec, setTransEtaSec] = useState<number | null>(null);
+  const [backoffUntil, setBackoffUntil] = useState<number | null>(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+  type AttemptEntry = { ts: number; kind: "info" | "ok" | "warn" | "error"; text: string };
+  const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [viewerLoaded, setViewerLoaded] = useState(false);
   const [, forceRepaint]              = useState(0);
+
+  function pushAttempt(kind: AttemptEntry["kind"], text: string) {
+    setAttempts(a => [...a, { ts: Date.now(), kind, text }].slice(-50));
+  }
+
+  // Live clock for elapsed/ETA/backoff countdown — ticks only when needed
+  useEffect(() => {
+    if (!translating && !uploading && !backoffUntil) return;
+    const id = setInterval(() => setNowTs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [translating, uploading, backoffUntil]);
 
   // Available-models panel
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
