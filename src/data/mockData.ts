@@ -27,6 +27,7 @@ export interface ProjectItem {
     notes?: string;
   }[];
   qcApproved: boolean;
+  ifcGuid?: string;   // ← from Revit / Excel import — used for BIM mapping
 }
 
 export interface Project {
@@ -40,6 +41,16 @@ export interface Project {
   sides: string[];
   floors: number[];
   urn?: string;
+}
+
+/** Row imported from Excel/CSV — all fields optional except ifcGuid */
+export interface ImportedItem {
+  ifcGuid: string;
+  barcode?: string;
+  type?: string;
+  floor?: number;
+  unit?: number;
+  side?: string;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
@@ -126,6 +137,7 @@ export function addProject(config: {
   sides: string[];
   floors: number[];
   unitsPerFloor: Record<string, number>;
+  importedItems?: ImportedItem[];   // ← from Excel/CSV
 }) {
   const id = config.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36);
   const project: Project = {
@@ -140,25 +152,45 @@ export function addProject(config: {
     floors: config.floors,
   };
 
-  const items: ProjectItem[] = [];
-  let idx = 0;
-  for (const side of config.sides) {
-    const units = config.unitsPerFloor[side] || 1;
-    for (const floor of config.floors) {
-      for (let unit = 1; unit <= units; unit++) {
-        idx++;
-        items.push({
-          id: `${id}-${idx}`,
-          barcode: `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx).padStart(5, '0')}`,
-          type: 'חלון',
-          floor,
-          unit,
-          side,
-          status: 'pending',
-          currentStation: null,
-          stationHistory: [],
-          qcApproved: false,
-        });
+  let items: ProjectItem[];
+
+  if (config.importedItems && config.importedItems.length > 0) {
+    // ── Build items from Excel rows ──────────────────────────────────────
+    items = config.importedItems.map((imp, idx) => ({
+      id: `${id}-${idx + 1}`,
+      barcode: imp.barcode || `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx + 1).padStart(5, '0')}`,
+      type: imp.type || 'חלון',
+      floor: imp.floor ?? 1,
+      unit: imp.unit ?? idx + 1,
+      side: imp.side || config.sides[0] || 'S-South',
+      status: 'pending',
+      currentStation: null,
+      stationHistory: [],
+      qcApproved: false,
+      ifcGuid: imp.ifcGuid,
+    }));
+  } else {
+    // ── Auto-generate items from grid config ─────────────────────────────
+    items = [];
+    let idx = 0;
+    for (const side of config.sides) {
+      const units = config.unitsPerFloor[side] || 1;
+      for (const floor of config.floors) {
+        for (let unit = 1; unit <= units; unit++) {
+          idx++;
+          items.push({
+            id: `${id}-${idx}`,
+            barcode: `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx).padStart(5, '0')}`,
+            type: 'חלון',
+            floor,
+            unit,
+            side,
+            status: 'pending',
+            currentStation: null,
+            stationHistory: [],
+            qcApproved: false,
+          });
+        }
       }
     }
   }
