@@ -302,6 +302,24 @@ export default function BimViewer({
     );
   }
 
+  // ─── Shared helper: build display props for a project item ──────────────
+  function buildItemDisplayProps(item: ProjectItem): { displayName: string; displayValue: string | number }[] {
+    const props: { displayName: string; displayValue: string | number }[] = [];
+    props.push({ displayName: "מזהה",           displayValue: item.barcode });
+    props.push({ displayName: "סוג",            displayValue: item.type });
+    if (item.unitName)    props.push({ displayName: "שם יחידה",      displayValue: item.unitName });
+    if (item.width)       props.push({ displayName: "אורך (מ\"מ)",    displayValue: item.width });
+    if (item.height)      props.push({ displayName: "גובה (מ\"מ)",    displayValue: item.height });
+    if (item.unitArea)    props.push({ displayName: "שטח",            displayValue: item.unitArea });
+    if (item.window)      props.push({ displayName: "חלון",           displayValue: item.window });
+    if (item.mashkofUp)   props.push({ displayName: "משקוף עליון",    displayValue: item.mashkofUp });
+    if (item.mashkofDown) props.push({ displayName: "משקוף תחתון",    displayValue: item.mashkofDown });
+    props.push({ displayName: "קומה",           displayValue: item.floorLabel || item.floor });
+    if (item.side)        props.push({ displayName: "חזית",           displayValue: item.side });
+    if (item.currentStation) props.push({ displayName: "תחנה נוכחית", displayValue: item.currentStation });
+    if (item.ifcGuid)     props.push({ displayName: "IfcGUID",        displayValue: item.ifcGuid });
+    return props;
+  }
   // ─── Build best-effort item ↔ dbId mappings ───────────────────────────────
   function buildMappings(viewer: any, model: any) {
     model.getBulkProperties(null, ["Name", "Mark", "IfcGUID", "GlobalId", "Tag"],
@@ -352,26 +370,21 @@ export default function BimViewer({
           elementStatusRef.current[dbId] ||
           (mappedItemId ? (items.find(i => i.id === mappedItemId)?.status ?? "pending") : "pending");
 
-        // If this dbId maps to a project item, enrich with item fields
+        // If this dbId maps to a project item, show item fields (same as list click)
         const projItem = mappedItemId ? items.find(i => i.id === mappedItemId) : null;
-        const extraProps = projItem ? [
-          { displayName: "ברקוד",  displayValue: projItem.barcode },
-          { displayName: "סוג",    displayValue: projItem.type    },
-          { displayName: "חזית",   displayValue: projItem.side    },
-          { displayName: "קומה",   displayValue: projItem.floor   },
-          { displayName: "יחידה",  displayValue: projItem.unit    },
-        ] : [];
 
-        const modelProps = (props.properties || [])
-          .filter((p: any) => p.displayValue !== "" && p.displayValue != null)
-          .slice(0, 10);
+        const displayProps: { displayName: string; displayValue: string | number }[] = projItem
+          ? buildItemDisplayProps(projItem)
+          : (props.properties || [])
+              .filter((p: any) => p.displayValue !== "" && p.displayValue != null)
+              .slice(0, 12);
 
         setActiveElement({
           dbId,
           name: projItem?.barcode || props.name || "אלמנט #" + dbId,
-          category: projItem?.type || props.objectid || "",
+          category: projItem?.unitName || projItem?.type || props.objectid || "",
           externalId: props.externalId,
-          properties: [...extraProps, ...modelProps],
+          properties: displayProps,
           status: currentStatus,
           projectItemId: mappedItemId ?? undefined,
         });
@@ -403,14 +416,8 @@ export default function BimViewer({
       setActiveElement({
         dbId: -1,
         name: item.barcode,
-        category: item.type,
-        properties: [
-          { displayName: "סוג",    displayValue: item.type  },
-          { displayName: "חזית",   displayValue: item.side  },
-          { displayName: "קומה",   displayValue: item.floor },
-          { displayName: "יחידה",  displayValue: item.unit  },
-          { displayName: "תחנה נוכחית", displayValue: item.currentStation || "—" },
-        ],
+        category: item.unitName || item.type,
+        properties: buildItemDisplayProps(item),
         status: currentStatus,
         projectItemId: item.id,
       });
