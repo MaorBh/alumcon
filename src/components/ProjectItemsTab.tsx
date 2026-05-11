@@ -2,7 +2,9 @@ import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
-import { Search } from "lucide-react";
+import ItemPhotosDialog from "@/components/ItemPhotosDialog";
+import { SCAN_LOG } from "@/scan/scanData";
+import { Search, ImageIcon } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 
 const qcLabel: Record<QcStatus, string> = {
@@ -38,6 +40,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
   const [, setRefreshKey] = useState(0);
+  const [photosFor, setPhotosFor] = useState<{ itemId: string; barcode: string } | null>(null);
 
   const filtered = useMemo(() => {
     return items.filter(item => {
@@ -107,7 +110,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {["ברקוד", "סוג", "חזית", "קומה", "מיקום", "תחנה נוכחית", "סטטוס", "QC"].map(h => (
+                {["ברקוד", "סוג", "חזית", "קומה", "מיקום", "תחנה נוכחית", "סטטוס", "QC", "תמונות"].map(h => (
                   <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
                 ))}
               </tr>
@@ -116,6 +119,7 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
               {filtered.map(item => {
                 const currentStationName = STATIONS.find(s => s.id === item.currentStation)?.name || "-";
                 const qcStatus = getQcStatus(item);
+                const photoCount = SCAN_LOG.filter(r => r.itemId === item.id).reduce((s, r) => s + r.photos.length, 0);
                 return (
                   <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors align-middle">
                     <td className="px-4 py-3 font-inter text-xs font-mono">{item.barcode}</td>
@@ -159,6 +163,22 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                         )}
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => photoCount > 0 && setPhotosFor({ itemId: item.id, barcode: item.barcode })}
+                        disabled={photoCount === 0}
+                        className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs transition ${
+                          photoCount > 0
+                            ? "border-border bg-background/60 text-foreground hover:bg-secondary hover:border-primary cursor-pointer"
+                            : "border-border/40 bg-muted/20 text-muted-foreground/60 cursor-not-allowed"
+                        }`}
+                        title={photoCount > 0 ? "צפייה בתמונות" : "אין תמונות"}
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span className="font-inter tabular-nums">{photoCount}</span>
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -166,6 +186,14 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
           </table>
         </div>
       </div>
+
+      {photosFor && (
+        <ItemPhotosDialog
+          itemId={photosFor.itemId}
+          barcode={photosFor.barcode}
+          onClose={() => setPhotosFor(null)}
+        />
+      )}
     </div>
   );
 }
