@@ -94,6 +94,10 @@ export default function BimViewer({
   const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [viewerLoaded, setViewerLoaded] = useState(false);
+  const [viewMode, setViewMode]         = useState<"3d" | "2d-ortho" | "2d-sheet">("3d");
+  const docRef = useRef<any>(null);
+  const views2dRef = useRef<any[]>([]);
+  const homeViewRef = useRef<any>(null);
   const [, forceRepaint]              = useState(0);
 
   function pushAttempt(kind: AttemptEntry["kind"], text: string) {
@@ -287,14 +291,21 @@ export default function BimViewer({
     const viewer = viewerRef.current; if (!viewer) return;
     window.Autodesk.Viewing.Document.load("urn:" + modelUrn,
       (doc: any) => {
+        docRef.current = doc;
         const root = doc.getRoot();
         const views3d = root.search({ type: "geometry", role: "3d" });
+        const views2d = root.search({ type: "geometry", role: "2d" });
+        views2dRef.current = views2d || [];
+        console.log("[BIM] 3D views:", views3d.length, "| 2D views:", views2d.length);
         const view = views3d[0] || root.getDefaultGeometry();
         viewer.loadDocumentNode(doc, view).then((model: any) => {
           modelRef.current = model;
           viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
             buildMappings(viewer, model);
             setViewerLoaded(true);
+            setViewMode("3d");
+            // Save home camera for returning from 2D
+            try { homeViewRef.current = viewer.navigation.getCamera().clone(); } catch {}
           });
         });
       },
@@ -446,6 +457,100 @@ export default function BimViewer({
     if (itemId) onStatusChange(itemId, newStatus);
   }
 
+  // ─── 2D / 3D view toggle ─────────────────────────────────────────────
+  function switchToOrtho2D() {
+    const viewer = viewerRef.current; const model = modelRef.current;
+    if (!viewer || !model) return;
+    // Save current camera before switching
+    if (viewMode === "3d") {
+      try { homeViewRef.current = viewer.navigation.getCamera().clone(); } catch {}
+    }
+    viewer.navigation.toOrthographic();
+    const bounds = model.getBoundingBox();
+    const center = bounds.center();
+    const size = bounds.size();
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const pos = new window.THREE.Vector3(center.x, center.y, center.z + maxDim * 2);
+    viewer.navigation.setView(pos, center);
+    viewer.navigation.setCameraUpVector(new window.THREE.Vector3(0, 1, 0));
+    viewer.fitToView(undefined, model, false);
+    setViewMode("2d-ortho");
+  }
+
+  function switchTo3D() {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.navigation.toPerspective();
+    if (homeViewRef.current) {
+      viewer.navigation.setRequestTransitionWithUp(
+        true,
+        homeViewRef.current.position,
+        homeViewRef.current.target,
+        homeViewRef.current.fov,
+        homeViewRef.current.up
+      );
+    }
+    viewer.fitToView(undefined, modelRef.current || undefined, false);
+    setViewMode("3d");
+  }
+
+  function loadSheet2D(sheetNode: any) {
+    const viewer = viewerRef.current; const doc = docRef.current;
+    if (!viewer || !doc) return;
+    // Save home camera
+    if (viewMode === "3d") {
+      try { homeViewRef.current = viewer.navigation.getCamera().clone(); } catch {}
+    }
+    viewer.loadDocumentNode(doc, sheetNode).then((model: any) => {
+      modelRef.current = model;
+      // Re-build mappings for the 2D sheet (dbIds may differ)
+      viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, function onGeom() {
+        viewer.removeEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeom);
+        buildMappings(viewer, model);
+        applyColors();
+      });
+      setViewMode("2d-sheet");
+    });
+  }
+
+  function returnTo3DFromSheet() {
+    const viewer = viewerRef.current; const doc = docRef.current;
+    if (!viewer || !doc) return;
+    const root = doc.getRoot();
+    const views3d = root.search({ type: "geometry", role: "3d" });
+    const view = views3d[0] || root.getDefaultGeometry();
+    viewer.loadDocumentNode(doc, view).then((model: any) => {
+      modelRef.current = model;
+      viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, function onGeom() {
+        viewer.removeEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeom);
+        buildMappings(viewer, model);
+        applyColors();
+        setViewerLoaded(true);
+        if (homeViewRef.current) {
+          viewer.navigation.toPerspective();
+          viewer.navigation.setRequestTransitionWithUp(
+            true,
+            homeViewRef.current.position,
+            homeViewRef.current.target,
+            homeViewRef.current.fov,
+            homeViewRef.current.up
+          );
+        }
+      });
+      setViewMode("3d");
+    });
+  }
+
+  function toggleView() {
+    if (viewMode === "3d") {
+      switchToOrtho2D();
+    } else if (viewMode === "2d-ortho") {
+      switchTo3D();
+    } else {
+      // From 2D sheet → back to 3D
+      returnTo3DFromSheet();
+    }
+  }
   // ─── Upload (with auto-retry on server failure / null URN) ───────────────
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
@@ -702,6 +807,35 @@ export default function BimViewer({
               className="bg-background/80 hover:bg-background backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
               בחר אחר
             </button>
+            {/* 2D/3D Toggle */}
+            <button
+              onClick={toggleView}
+              className={`backdrop-blur border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewMode !== "3d"
+                  ? "bg-primary/90 text-primary-foreground border-primary hover:bg-primary"
+                  : "bg-background/80 hover:bg-background border-border"
+              }`}
+              title={viewMode === "3d" ? "מעבר למבט על (2D)" : "חזרה ל-3D"}>
+              {viewMode === "3d" ? "2D מבט-על" : "3D חזרה"}
+            </button>
+            {/* 2D Sheets (if available) */}
+            {views2dRef.current.length > 0 && viewMode !== "2d-sheet" && (
+              <div className="relative group">
+                <button
+                  className="bg-background/80 hover:bg-background backdrop-blur border border-border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors">
+                  תוכניות 2D ({views2dRef.current.length})
+                </button>
+                <div className="hidden group-hover:block absolute top-full left-0 mt-1 bg-background border border-border rounded-lg shadow-xl z-50 min-w-[180px] max-h-48 overflow-y-auto">
+                  {views2dRef.current.map((sheet: any, i: number) => (
+                    <button key={i}
+                      onClick={() => loadSheet2D(sheet)}
+                      className="w-full text-right px-3 py-2 text-xs hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0">
+                      {sheet.data?.name || sheet.name?.() || `Sheet ${i + 1}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur border border-border rounded-lg px-3 py-2 z-10">
