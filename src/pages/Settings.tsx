@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sun, Moon, Palette, Users } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
+import ReportSettingsCard from "@/components/ReportSettingsCard";
 import { useAuth } from "@/auth/AuthContext";
 
 export default function Settings() {
@@ -64,6 +65,8 @@ export default function Settings() {
           </CardHeader>
         </Card>
       )}
+
+      {hasRole("admin") && <ReportSettingsCard />}
 
       <Card>
         <CardHeader>
