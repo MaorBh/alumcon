@@ -27,7 +27,15 @@ export interface ProjectItem {
     notes?: string;
   }[];
   qcApproved: boolean;
-  ifcGuid?: string;   // ← from Revit / Excel import — used for BIM mapping
+  ifcGuid?: string;
+  unitName?: string;
+  width?: number;
+  height?: number;
+  unitArea?: string;
+  window?: string;
+  mashkofUp?: string;
+  mashkofDown?: string;
+  floorLabel?: string;
 }
 
 export interface Project {
@@ -53,6 +61,13 @@ export interface ImportedItem {
   side?: string;
   width?: number;
   height?: number;
+  unitName?: string;
+  unitArea?: string;
+  window?: string;
+  mashkofUp?: string;
+  mashkofDown?: string;
+  done?: string;
+  floorLabel?: string;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
@@ -170,6 +185,14 @@ export function addProject(config: {
       stationHistory: [],
       qcApproved: false,
       ifcGuid: imp.ifcGuid,
+      unitName: imp.unitName,
+      width: imp.width,
+      height: imp.height,
+      unitArea: imp.unitArea,
+      window: imp.window,
+      mashkofUp: imp.mashkofUp,
+      mashkofDown: imp.mashkofDown,
+      floorLabel: imp.floorLabel,
     }));
   } else {
     // ── Auto-generate items from grid config ─────────────────────────────
