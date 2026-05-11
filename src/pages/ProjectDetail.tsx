@@ -35,11 +35,10 @@ function getQcStatus(item: { qcApproved: boolean; status: ItemStatus; stationHis
   return "not_checked";
 }
 
-type Tab = "dashboard" | "grid" | "bim" | "items" | "settings";
+type Tab = "dashboard" | "bim" | "items" | "settings";
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "דשבורד", icon: LayoutDashboard },
-  { id: "grid", label: "גריד", icon: Grid3X3 },
   { id: "bim", label: "מודל BIM", icon: Box },
   { id: "items", label: "פריטים", icon: List },
   { id: "settings", label: "הגדרות", icon: Settings },
@@ -192,165 +191,6 @@ export default function ProjectDetail() {
                   })}
                 </tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "grid" && (
-        <div className="space-y-4">
-          {/* Side selector */}
-          <div className="flex gap-2 flex-wrap">
-            {project.sides.map(side => {
-              const sItems = items.filter(i => i.side === side);
-              const sCompleted = sItems.filter(i => i.status === "completed").length;
-              const pct = sItems.length > 0 ? ((sCompleted / sItems.length) * 100).toFixed(0) : "0";
-              return (
-                <button
-                  key={side}
-                  onClick={() => { setActiveSide(side); setSelectedFloor(null); setSelectedItemId(null); }}
-                  className={`h-9 px-4 rounded-lg text-sm font-medium transition-all duration-200 inline-flex items-center gap-2 ${
-                    activeSide === side
-                      ? "bg-primary text-primary-foreground shadow-glow"
-                      : "bg-secondary/60 border border-border/60 text-secondary-foreground hover:bg-secondary"
-                  }`}
-                >
-                  <span>{side}</span>
-                  <span className={`text-[11px] font-inter tabular-nums ${activeSide === side ? "opacity-90" : "text-muted-foreground"}`}>{pct}%</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <div className="glass-card p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  <h3 className="font-semibold text-sm">גריד חזית - {activeSide}</h3>
-                </div>
-
-                <div className="flex gap-6 mb-4 flex-wrap">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">סטטוס ייצור (עליון)</p>
-                    <div className="flex gap-3">
-                      {(["pending", "in_progress", "completed", "rejected"] as ItemStatus[]).map(status => (
-                        <div key={status} className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: statusToColor[status] }} />
-                          <StatusBadge status={status} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground mb-1.5 font-semibold">בקרת איכות (תחתון)</p>
-                    <div className="flex gap-3">
-                      {(["not_checked", "approved", "failed"] as QcStatus[]).map(qc => (
-                        <div key={qc} className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: qcToColor[qc] }} />
-                          <span className="text-xs text-muted-foreground">{qcLabel[qc]}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <div className="min-w-[500px]">
-                    {reversedFloors.map(floor => {
-                      const floorData = sideItems.filter(i => i.floor === floor);
-                      return (
-                        <div
-                          key={floor}
-                          className={`flex items-center gap-1 mb-1 cursor-pointer rounded px-1 transition-colors ${
-                            selectedFloor === floor ? "bg-primary/10" : "hover:bg-muted/50"
-                          }`}
-                          onClick={() => setSelectedFloor(floor)}
-                        >
-                          <span className="w-8 text-xs font-inter text-muted-foreground font-mono shrink-0">{floor}</span>
-                          <div className="flex gap-0.5 flex-1">
-                            {Array.from({ length: maxUnitsPerFloor }, (_, u) => {
-                              const item = floorData.find(i => i.unit === u + 1);
-                              const qcStatus = item ? getQcStatus(item) : "not_checked";
-                              return (
-                                <div
-                                  key={u}
-                                  className={`h-10 flex-1 rounded-sm border transition-all duration-200 hover:scale-110 hover:z-10 relative group flex flex-col overflow-hidden cursor-pointer ${
-                                    item && selectedItemId === item.id ? "border-primary ring-2 ring-primary/50" : "border-border/30"
-                                  }`}
-                                  style={{ minWidth: "22px" }}
-                                  title={item ? `${item.barcode} - ${item.type}` : "ריק"}
-                                  onClick={(e) => { e.stopPropagation(); if (item) { setSelectedFloor(floor); setSelectedItemId(item.id); } }}
-                                >
-                                  <div className="flex-1" style={{ backgroundColor: item ? statusToColor[item.status] : "hsl(var(--muted))" }} />
-                                  <div className="h-px bg-background/40" />
-                                  <div className="flex-1" style={{ backgroundColor: item ? qcToColor[qcStatus] : "hsl(var(--muted))" }} />
-                                  {item && (
-                                    <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-1 hidden group-hover:block z-20 bg-popover border border-border rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
-                                      <p className="font-mono">{item.barcode}</p>
-                                      <p>{item.type}</p>
-                                      <p className="text-muted-foreground">QC: {qcLabel[qcStatus]}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="glass-card p-4">
-                <h3 className="font-semibold text-sm mb-3">
-                  {selectedFloor ? `קומה ${selectedFloor} - פרטי פריטים` : "לחץ על קומה לפרטים"}
-                </h3>
-                {selectedFloor ? (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {floorItems.map(item => {
-                      const lastStation = item.stationHistory[item.stationHistory.length - 1];
-                      const stationName = STATIONS.find(s => s.id === lastStation?.station)?.name;
-                      return (
-                        <div key={item.id} id={`item-${item.id}`} className={`rounded-lg p-3 space-y-1.5 transition-all duration-300 ${
-                          selectedItemId === item.id ? "bg-primary/15 ring-1 ring-primary/40" : "bg-muted/30"
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs font-inter">{item.barcode}</span>
-                            <StatusBadge status={item.status} />
-                          </div>
-                          <p className="text-xs text-muted-foreground">{item.type} • יחידה {item.unit}</p>
-                          {stationName && (
-                            <p className="text-xs text-muted-foreground">תחנה אחרונה: <span className="text-foreground">{stationName}</span></p>
-                          )}
-                          <div className="flex gap-1 pt-1">
-                            {STATIONS.map(s => {
-                              const hist = item.stationHistory.find(h => h.station === s.id);
-                              return (
-                                <div
-                                  key={s.id}
-                                  className="w-4 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: hist
-                                      ? hist.result === "pass" ? "hsl(var(--status-completed))" : "hsl(var(--status-rejected))"
-                                      : "hsl(var(--muted))",
-                                  }}
-                                  title={`${s.name}: ${hist ? (hist.result === "pass" ? "עבר" : "נכשל") : "טרם"}`}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-10">בחר קומה בגריד כדי לראות פרטים</p>
-                )}
-              </div>
             </div>
           </div>
         </div>
