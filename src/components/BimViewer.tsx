@@ -95,22 +95,45 @@ export default function BimViewer({
   const [showModels, setShowModels]           = useState(false);
   const [manualUrn, setManualUrn]             = useState("");
 
-  // ─── URN init ─────────────────────────────────────────────────────────────
+  // ─── URN init (with retry on cold-start / null URN) ──────────────────────
   useEffect(() => {
     const local = getLocalUrn(projectId);
     if (local) setUrn(local);
-    fetch(API_URL + "/api/project-urn/" + projectId)
-      .then(r => r.json())
-      .then(d => {
-        if (d.urn) { setUrn(d.urn); setLocalUrn(projectId, d.urn); }
-        else if (local) {
-          fetch(API_URL + "/api/restore-urn/" + projectId, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ urn: local }),
-          }).catch(() => {});
-        }
-      })
-      .catch(() => { if (local) setUrn(local); });
+
+    let cancelled = false;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 6; // ~ up to ~60s for Render cold start
+
+    async function fetchUrnWithRetry() {
+      while (!cancelled && attempt < MAX_ATTEMPTS) {
+        attempt++;
+        try {
+          const r = await fetch(API_URL + "/api/project-urn/" + projectId);
+          const d = await r.json();
+          if (d.urn) {
+            if (!cancelled) { setUrn(d.urn); setLocalUrn(projectId, d.urn); }
+            return;
+          }
+          // URN is null on server — try to restore from local cache
+          if (local) {
+            try {
+              await fetch(API_URL + "/api/restore-urn/" + projectId, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ urn: local }),
+              });
+              if (!cancelled) setUrn(local);
+              return;
+            } catch { /* retry */ }
+          }
+        } catch { /* network/server down — retry */ }
+        // Backoff: 2s, 4s, 6s, 8s, 10s, 12s
+        await new Promise(res => setTimeout(res, attempt * 2000));
+      }
+      if (!cancelled && local) setUrn(local);
+    }
+
+    fetchUrnWithRetry();
+    return () => { cancelled = true; };
   }, [projectId]);
 
   // ─── Viewer init ──────────────────────────────────────────────────────────
