@@ -1,0 +1,216 @@
+import { useMemo, useState } from "react";
+import { PROJECTS, PROJECT_ITEMS, STATIONS, ProjectItem, StationId } from "@/data/mockData";
+import { FileBarChart2, Mail, Calendar } from "lucide-react";
+
+interface StationStats {
+  stationId: StationId;
+  stationName: string;
+  inStation: number;
+  completedToday: number;
+  rejectedToday: number;
+  avgMinutes: number | null;
+}
+
+function isSameDay(iso: string, date: Date) {
+  const d = new Date(iso);
+  return (
+    d.getFullYear() === date.getFullYear() &&
+    d.getMonth() === date.getMonth() &&
+    d.getDate() === date.getDate()
+  );
+}
+
+function computeStationStats(items: ProjectItem[], date: Date): StationStats[] {
+  return STATIONS.map(s => {
+    const inStation = items.filter(i => i.currentStation === s.id && i.status === "in_progress").length;
+
+    const todayHistory = items.flatMap(i =>
+      i.stationHistory
+        .filter(h => h.station === s.id && isSameDay(h.timestamp, date))
+        .map(h => ({ itemId: i.id, ...h }))
+    );
+
+    const completedToday = todayHistory.filter(h => h.result === "pass").length;
+    const rejectedToday = todayHistory.filter(h => h.result === "fail").length;
+
+    // avg minutes per unit at this station: time between previous station's pass and this station's event
+    const durations: number[] = [];
+    items.forEach(i => {
+      const sortedHist = [...i.stationHistory].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      const idx = sortedHist.findIndex(h => h.station === s.id && isSameDay(h.timestamp, date));
+      if (idx === -1) return;
+      const prev = idx > 0 ? sortedHist[idx - 1] : null;
+      if (!prev) return;
+      const diffMs = new Date(sortedHist[idx].timestamp).getTime() - new Date(prev.timestamp).getTime();
+      if (diffMs > 0 && diffMs < 1000 * 60 * 60 * 48) durations.push(diffMs / 60000);
+    });
+    const avgMinutes = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+
+    return {
+      stationId: s.id,
+      stationName: s.name,
+      inStation,
+      completedToday,
+      rejectedToday,
+      avgMinutes,
+    };
+  });
+}
+
+function formatMinutes(m: number | null) {
+  if (m == null) return "—";
+  if (m < 60) return `${m.toFixed(0)} ד׳`;
+  const h = Math.floor(m / 60);
+  const min = Math.round(m % 60);
+  return `${h}:${String(min).padStart(2, "0")} ש׳`;
+}
+
+export default function Reports() {
+  const [dateStr, setDateStr] = useState(() => new Date().toISOString().split("T")[0]);
+  const date = useMemo(() => new Date(dateStr), [dateStr]);
+
+  // For mock data dates are 2026-01-15..onward; allow user to pick a sample-rich day
+  const projectReports = useMemo(
+    () =>
+      PROJECTS.map(p => {
+        const items = PROJECT_ITEMS[p.id] || [];
+        const stations = computeStationStats(items, date);
+        const totals = stations.reduce(
+          (acc, s) => ({
+            inStation: acc.inStation + s.inStation,
+            completed: acc.completed + s.completedToday,
+            rejected: acc.rejected + s.rejectedToday,
+          }),
+          { inStation: 0, completed: 0, rejected: 0 }
+        );
+        return { project: p, stations, totals };
+      }),
+    [date]
+  );
+
+  const grandTotals = projectReports.reduce(
+    (acc, r) => ({
+      inStation: acc.inStation + r.totals.inStation,
+      completed: acc.completed + r.totals.completed,
+      rejected: acc.rejected + r.totals.rejected,
+    }),
+    { inStation: 0, completed: 0, rejected: 0 }
+  );
+
+  const buildEmailBody = () => {
+    const lines: string[] = [];
+    lines.push(`דוח יומי - ${dateStr}`);
+    lines.push("");
+    lines.push(`סה"כ בתחנות: ${grandTotals.inStation} | הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`);
+    lines.push("");
+    projectReports.forEach(r => {
+      lines.push(`== ${r.project.name} ==`);
+      r.stations.forEach(s => {
+        lines.push(
+          `${s.stationName}: בתחנה ${s.inStation} | הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`
+        );
+      });
+      lines.push("");
+    });
+    return lines.join("\n");
+  };
+
+  const handleEmail = () => {
+    const subject = encodeURIComponent(`דוח ייצור יומי - ${dateStr}`);
+    const body = encodeURIComponent(buildEmailBody());
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="surface-card p-5 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+            <FileBarChart2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">דוח ייצור יומי</h2>
+            <p className="text-xs text-muted-foreground">סיכום ביצועים לפי פרויקט ותחנה</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mr-auto">
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          <input
+            type="date"
+            value={dateStr}
+            onChange={e => setDateStr(e.target.value)}
+            className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+          />
+          <button
+            onClick={handleEmail}
+            className="h-10 inline-flex items-center gap-2 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition"
+          >
+            <Mail className="w-4 h-4" />
+            שלח במייל
+          </button>
+        </div>
+      </div>
+
+      {/* Grand totals */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="surface-card p-5">
+          <div className="text-xs text-muted-foreground mb-1">פריטים פעילים בתחנות</div>
+          <div className="text-3xl font-bold font-inter tabular-nums text-foreground">{grandTotals.inStation}</div>
+        </div>
+        <div className="surface-card p-5">
+          <div className="text-xs text-muted-foreground mb-1">בוצעו היום</div>
+          <div className="text-3xl font-bold font-inter tabular-nums text-status-completed">{grandTotals.completed}</div>
+        </div>
+        <div className="surface-card p-5">
+          <div className="text-xs text-muted-foreground mb-1">פסולים היום</div>
+          <div className="text-3xl font-bold font-inter tabular-nums text-status-rejected">{grandTotals.rejected}</div>
+        </div>
+      </div>
+
+      {/* Per-project tables */}
+      {projectReports.map(r => (
+        <div key={r.project.id} className="surface-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">{r.project.name}</h3>
+              <p className="text-xs text-muted-foreground">{r.project.description}</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-muted-foreground">בתחנות: <span className="font-semibold text-foreground font-inter tabular-nums">{r.totals.inStation}</span></span>
+              <span className="text-muted-foreground">הושלמו: <span className="font-semibold text-status-completed font-inter tabular-nums">{r.totals.completed}</span></span>
+              <span className="text-muted-foreground">פסולים: <span className="font-semibold text-status-rejected font-inter tabular-nums">{r.totals.rejected}</span></span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/20">
+                  {["תחנה", "פעיל בתחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
+                    <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {r.stations.map(s => (
+                  <tr key={s.stationId} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{s.stationName}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums">{s.inStation}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-completed">{s.completedToday}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-rejected">{s.rejectedToday}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-muted-foreground">{formatMinutes(s.avgMinutes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
