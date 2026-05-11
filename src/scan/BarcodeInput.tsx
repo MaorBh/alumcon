@@ -58,14 +58,8 @@ export default function BarcodeInput({
           }}
           placeholder={placeholder || "סרוק ברקוד..."}
           className="w-full h-14 bg-background border-2 border-primary/40 rounded-xl pr-11 pl-14 text-base font-mono tracking-wider text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition"
-          // readOnly suppresses the Android soft keyboard while still receiving keystrokes
-          // from the hardware scanner (which uses HID/keyboard wedge).
-          readOnly={suppressKeyboard}
-          onFocus={(e) => {
-            // Allow the cursor to be at end so additional manual typing works after toggling.
-            const v = e.target.value;
-            e.target.setSelectionRange(v.length, v.length);
-          }}
+          // inputMode="none" suppresses the Android soft keyboard while still receiving
+          // keystrokes from hardware scanners (Urovo DT50S sends HID keystrokes + Enter).
           inputMode={suppressKeyboard ? "none" : "text"}
           autoComplete="off"
           spellCheck={false}
