@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   LogOut,
+  FileBarChart2,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/auth/AuthContext";
@@ -20,6 +21,7 @@ const navItems = [
   { path: "/", label: "מבט על", icon: LayoutDashboard },
   { path: "/projects", label: "פרויקטים", icon: FolderKanban },
   { path: "/items", label: "פריטים", icon: ScanBarcode },
+  { path: "/reports", label: "דוחות", icon: FileBarChart2 },
   { path: "/settings", label: "הגדרות", icon: Settings },
 ];
 
