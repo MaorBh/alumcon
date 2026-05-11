@@ -69,6 +69,14 @@ export default function ScanLogin() {
           </button>
         </form>
 
+        <Link
+          to="/scan/install"
+          className="surface-card p-3 flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:bg-secondary transition"
+        >
+          <Download className="w-4 h-4" />
+          התקן על המסך הבית של המסופון
+        </Link>
+
         <details className="surface-card p-3 text-xs text-muted-foreground">
           <summary className="cursor-pointer font-semibold text-foreground">משתמשים לדוגמה (סיסמה: 1234)</summary>
           <div className="mt-2 grid grid-cols-2 gap-1 font-mono">
