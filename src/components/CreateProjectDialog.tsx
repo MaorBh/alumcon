@@ -32,15 +32,7 @@ interface Props {
   onProjectCreated: (data: ProjectFormData) => void;
 }
 
-// Detect column name (Hebrew + English variants)
-function detectColumn(headers: string[], candidates: string[]): string | undefined {
-  const lower = headers.map(h => h?.toString().trim().toLowerCase());
-  for (const c of candidates) {
-    const idx = lower.indexOf(c.toLowerCase());
-    if (idx !== -1) return headers[idx];
-  }
-  return undefined;
-}
+
 
 async function parseExcelFile(file: File): Promise<ImportedItem[]> {
   return new Promise((resolve, reject) => {
@@ -50,63 +42,85 @@ async function parseExcelFile(file: File): Promise<ImportedItem[]> {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-        if (rows.length === 0) { resolve([]); return; }
+        // Read as array-of-arrays to handle title rows
+        const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        if (rawRows.length < 2) { resolve([]); return; }
 
-        const headers = Object.keys(rows[0]);
-        // IfcGUID – primary BIM linkage key
-        const colIfcGuid = detectColumn(headers, [
-          "IfcGUID", "ifcguid", "IFCGUID", "IFC GUID",
-          "GlobalId", "globalid", "GLOBALID",
-          "GUID", "guid",
-        ]);
-        // Floor / קומה
-        const colFloor   = detectColumn(headers, ["Floor", "קומה", "FLOOR", "floor", "Koma"]);
-        // Unit identifier / מזהה יחידה
-        const colUnit    = detectColumn(headers, [
-          "UNIT_ID", "מזהה", "Unit", "יחידה",
-          "UNIT_NAME", "שם היחידה", "unit", "UNIT", "דירה",
-        ]);
-        // Facade / חזית
-        const colSide    = detectColumn(headers, ["חזית", "Side", "side", "SIDE", "Facade"]);
-        // Element type / סוג
-        const colType    = detectColumn(headers, [
-          "TYPE", "סוג", "Type", "type", "Window", "חלון", "Category",
-        ]);
-        // Barcode / ברקוד  (fallback: UNIT_ID / מזהה)
-        const colBarcode = detectColumn(headers, [
-          "Barcode", "ברקוד", "barcode", "BARCODE",
-          "UNIT_ID", "מזהה", "Code",
-        ]);
-        // Width / אורך
-        const colWidth   = detectColumn(headers, ["WIDTH", "אורך", "Width", "width"]);
-        // Height / גובה
-        const colHeight  = detectColumn(headers, ["HEIGHT", "גובה", "Height", "height"]);
+        // Find the actual header row: the first row with 3+ non-empty cells
+        let headerIdx = -1;
+        for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
+          const nonEmpty = rawRows[r].filter(c => c !== "" && c != null).length;
+          if (nonEmpty >= 3) { headerIdx = r; break; }
+        }
+        if (headerIdx < 0) { resolve([]); return; }
 
-        // Helper: extract numeric part from a value like "קומה 3" or "Floor 3" or just "3"
-        const toNum = (v: unknown): number | undefined => {
-          const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
-          return isNaN(n) || n === 0 ? undefined : n;
-        };
+        const rawHeaders = rawRows[headerIdx].map(h => String(h ?? "").trim());
+        const lowerHeaders = rawHeaders.map(h => h.toLowerCase());
 
-        const items: ImportedItem[] = rows
-          .map(row => {
-            const ifcGuid = colIfcGuid ? String(row[colIfcGuid] ?? "").trim() : "";
-            if (!ifcGuid) return null;
-            return {
-              ifcGuid,
-              barcode: colBarcode ? String(row[colBarcode] ?? "").trim() || undefined : undefined,
-              type:    colType    ? String(row[colType]    ?? "").trim() || undefined : undefined,
-              floor:   colFloor   ? toNum(row[colFloor])                              : undefined,
-              unit:    colUnit    ? toNum(row[colUnit])                               : undefined,
-              side:    colSide    ? String(row[colSide]    ?? "").trim() || undefined : undefined,
-              width:   colWidth   ? toNum(row[colWidth])                              : undefined,
-              height:  colHeight  ? toNum(row[colHeight])                             : undefined,
-            } as ImportedItem;
-          })
-          .filter((item): item is ImportedItem => item !== null);
+        // Column finder (case-insensitive)
+        function findCol(candidates: string[]): number {
+          for (const c of candidates) {
+            const idx = lowerHeaders.indexOf(c.toLowerCase());
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        }
 
+        const iIfcGuid    = findCol(["IfcGUID", "IFCGUID", "IFC GUID", "GlobalId", "GUID"]);
+        const iUnitId     = findCol(["UNIT_ID", "מזהה"]);
+        const iType       = findCol(["TYPE", "סוג"]);
+        const iUnitName   = findCol(["Unit_NAME", "UNIT_NAME", "שם היחידה"]);
+        const iWidth      = findCol(["WIDTH", "אורך"]);
+        const iHeight     = findCol(["HEIGHT", "גובה"]);
+        const iWindow     = findCol(["Window", "חלון"]);
+        const iUnitArea   = findCol(["Unit_Area", "שטח"]);
+        const iMashkofUp  = findCol(["Mashkof_UP", "משקוף עליון"]);
+        const iMashkofDn  = findCol(["Mashkof_Down", "משקוף תחתון"]);
+        const iFloor      = findCol(["Floor", "קומה"]);
+        const iDone       = findCol(["Done", "בוצע"]);
+        const iBarcode    = findCol(["Barcode", "ברקוד"]);
+        const iSide       = findCol(["Side", "חזית"]);
+
+        console.log("[Excel Parse] Headers:", rawHeaders);
+        console.log("[Excel Parse] IfcGUID col:", iIfcGuid, "| UNIT_ID col:", iUnitId, "| Floor col:", iFloor);
+
+        const items: ImportedItem[] = [];
+        for (let r = headerIdx + 1; r < rawRows.length; r++) {
+          const row = rawRows[r];
+          if (!row || row.every(c => c === "" || c == null)) continue;
+
+          const ifcGuid = iIfcGuid >= 0 ? String(row[iIfcGuid] ?? "").trim() : "";
+          if (!ifcGuid) continue;
+
+          const floorRaw = iFloor >= 0 ? String(row[iFloor] ?? "").trim() : "";
+          const floorNum = parseInt(floorRaw.replace(/[^0-9]/g, ""), 10) || undefined;
+
+          // Extract unit number from UNIT_ID like "F01-13" → 13
+          const unitIdRaw = iUnitId >= 0 ? String(row[iUnitId] ?? "").trim() : "";
+          const unitMatch = unitIdRaw.match(/-(\d+)$/);
+          const unitNum = unitMatch ? parseInt(unitMatch[1], 10) : undefined;
+
+          items.push({
+            ifcGuid,
+            barcode:     iBarcode >= 0 ? String(row[iBarcode] ?? "").trim() || unitIdRaw || undefined
+                                       : unitIdRaw || undefined,
+            type:        iType >= 0       ? String(row[iType] ?? "").trim() || undefined       : undefined,
+            floor:       floorNum,
+            unit:        unitNum,
+            side:        iSide >= 0       ? String(row[iSide] ?? "").trim() || undefined       : undefined,
+            width:       iWidth >= 0      ? (Number(row[iWidth]) || undefined)                 : undefined,
+            height:      iHeight >= 0     ? (Number(row[iHeight]) || undefined)                : undefined,
+            unitName:    iUnitName >= 0   ? String(row[iUnitName] ?? "").trim() || undefined   : undefined,
+            unitArea:    iUnitArea >= 0   ? String(row[iUnitArea] ?? "").trim() || undefined   : undefined,
+            window:      iWindow >= 0     ? String(row[iWindow] ?? "").trim() || undefined     : undefined,
+            mashkofUp:   iMashkofUp >= 0  ? String(row[iMashkofUp] ?? "").trim() || undefined  : undefined,
+            mashkofDown: iMashkofDn >= 0  ? String(row[iMashkofDn] ?? "").trim() || undefined  : undefined,
+            done:        iDone >= 0       ? String(row[iDone] ?? "").trim() || undefined       : undefined,
+            floorLabel:  floorRaw || undefined,
+          });
+        }
+        console.log("[Excel Parse] Parsed items:", items.length);
         resolve(items);
       } catch (err) {
         reject(err);
