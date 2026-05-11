@@ -200,13 +200,26 @@ export default function BimViewer({
     pollTranslation(modelUrn);
   }
 
-  async function pollTranslation(modelUrn: string) {
+  async function pollTranslation(modelUrn: string, failCount = 0) {
     try {
       const s = await fetch(API_URL + "/api/translate-status/" + encodeURIComponent(modelUrn)).then(r => r.json());
       if (s.status === "success") { setTranslating(false); setTransMsg(""); startLoadingModel(modelUrn); }
-      else if (s.status === "failed") { setTranslating(false); setTransMsg("שגיאה בהמרה"); }
-      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn), 4000); }
-    } catch { setTranslating(false); setTransMsg("שגיאה בבדיקת סטטוס"); }
+      else if (s.status === "failed") {
+        // Auto-retry translation up to 3 times before giving up
+        if (failCount < 3) {
+          setTransMsg(`המרה נכשלה — מנסה שוב (${failCount + 1}/3)...`);
+          setTimeout(() => pollTranslation(modelUrn, failCount + 1), 5000);
+        } else {
+          setTranslating(false); setTransMsg("שגיאה בהמרה — נסה להעלות שוב");
+        }
+      }
+      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn, failCount), 4000); }
+    } catch {
+      // Network / server error — retry indefinitely with backoff (server cold start)
+      const wait = Math.min(15000, 3000 + failCount * 2000);
+      setTransMsg(`ממתין לשרת... (ניסיון ${failCount + 1})`);
+      setTimeout(() => pollTranslation(modelUrn, failCount + 1), wait);
+    }
   }
 
   function startLoadingModel(modelUrn: string) {
