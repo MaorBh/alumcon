@@ -281,7 +281,7 @@ export default function BimViewer({
       setTimeout(() => { setBackoffUntil(null); pollTranslation(modelUrn, failCount + 1); }, wait);
     }
   }
-  }
+
 
   function startLoadingModel(modelUrn: string) {
     const viewer = viewerRef.current; if (!viewer) return;
