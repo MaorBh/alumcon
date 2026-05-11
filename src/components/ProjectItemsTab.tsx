@@ -39,17 +39,27 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("all");
   const [stationFilter, setStationFilter] = useState<string>("all");
+  const [sideFilter, setSideFilter] = useState<string>("all");
+  const [floorFilter, setFloorFilter] = useState<string>("all");
+  const [unitFilter, setUnitFilter] = useState<string>("all");
   const [, setRefreshKey] = useState(0);
   const [photosFor, setPhotosFor] = useState<{ itemId: string; barcode: string } | null>(null);
+
+  const sides = useMemo(() => Array.from(new Set(items.map(i => i.side))).sort(), [items]);
+  const floors = useMemo(() => Array.from(new Set(items.map(i => i.floor))).sort((a, b) => a - b), [items]);
+  const units = useMemo(() => Array.from(new Set(items.map(i => i.unit))).sort((a, b) => a - b), [items]);
 
   const filtered = useMemo(() => {
     return items.filter(item => {
       const matchSearch = !search || item.barcode.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === "all" || item.status === statusFilter;
       const matchStation = stationFilter === "all" || item.currentStation === stationFilter;
-      return matchSearch && matchStatus && matchStation;
+      const matchSide = sideFilter === "all" || item.side === sideFilter;
+      const matchFloor = floorFilter === "all" || String(item.floor) === floorFilter;
+      const matchUnit = unitFilter === "all" || String(item.unit) === unitFilter;
+      return matchSearch && matchStatus && matchStation && matchSide && matchFloor && matchUnit;
     }).slice(0, 100);
-  }, [items, search, statusFilter, stationFilter]);
+  }, [items, search, statusFilter, stationFilter, sideFilter, floorFilter, unitFilter]);
 
   const handleStatusChange = (itemId: string, newStatus: ItemStatus) => {
     if (!projectId) return;
