@@ -66,6 +66,8 @@ export default function Settings() {
         </Card>
       )}
 
+      {hasRole("admin") && <ReportSettingsCard />}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">אודות המערכת</CardTitle>
