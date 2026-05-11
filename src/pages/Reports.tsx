@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { PROJECTS, PROJECT_ITEMS, STATIONS, ProjectItem, StationId } from "@/data/mockData";
-import { FileBarChart2, Mail, Calendar } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { PROJECTS, PROJECT_ITEMS, STATIONS, StationId } from "@/data/mockData";
+import { SCAN_LOG, ScanRecord } from "@/scan/scanData";
+import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
 
 interface StationStats {
   stationId: StationId;
@@ -20,33 +21,59 @@ function isSameDay(iso: string, date: Date) {
   );
 }
 
-function computeStationStats(items: ProjectItem[], date: Date): StationStats[] {
+/**
+ * Compute stats from the live SCAN_LOG (real scans) for a single project.
+ * - inStation: items currently sitting at this station (from item state, updated by scans)
+ * - completedToday: count of station_pass scans at this station today
+ * - rejectedToday: count of station_reject + qc_reject scans at this station today
+ * - avgMinutes: avg time between the previous scan on the same item and the
+ *   scan that landed it at this station (today)
+ */
+function computeStationStats(projectId: string, date: Date): StationStats[] {
+  const items = PROJECT_ITEMS[projectId] || [];
+
+  // Index project scans chronologically by item
+  const projectScans = SCAN_LOG
+    .filter(s => s.projectId === projectId)
+    .slice()
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  const scansByItem = new Map<string, ScanRecord[]>();
+  for (const s of projectScans) {
+    if (!scansByItem.has(s.itemId)) scansByItem.set(s.itemId, []);
+    scansByItem.get(s.itemId)!.push(s);
+  }
+
   return STATIONS.map(s => {
-    const inStation = items.filter(i => i.currentStation === s.id && i.status === "in_progress").length;
+    const inStation = items.filter(
+      i => i.currentStation === s.id && i.status === "in_progress",
+    ).length;
 
-    const todayHistory = items.flatMap(i =>
-      i.stationHistory
-        .filter(h => h.station === s.id && isSameDay(h.timestamp, date))
-        .map(h => ({ itemId: i.id, ...h }))
-    );
-
-    const completedToday = todayHistory.filter(h => h.result === "pass").length;
-    const rejectedToday = todayHistory.filter(h => h.result === "fail").length;
-
-    // avg minutes per unit at this station: time between previous station's pass and this station's event
+    let completedToday = 0;
+    let rejectedToday = 0;
     const durations: number[] = [];
-    items.forEach(i => {
-      const sortedHist = [...i.stationHistory].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-      const idx = sortedHist.findIndex(h => h.station === s.id && isSameDay(h.timestamp, date));
-      if (idx === -1) return;
-      const prev = idx > 0 ? sortedHist[idx - 1] : null;
-      if (!prev) return;
-      const diffMs = new Date(sortedHist[idx].timestamp).getTime() - new Date(prev.timestamp).getTime();
-      if (diffMs > 0 && diffMs < 1000 * 60 * 60 * 48) durations.push(diffMs / 60000);
+
+    scansByItem.forEach(itemScans => {
+      itemScans.forEach((scan, idx) => {
+        if (!isSameDay(scan.timestamp, date)) return;
+        if (scan.stationId !== s.id) return;
+
+        if (scan.action === "station_pass") {
+          completedToday++;
+          const prev = itemScans[idx - 1];
+          if (prev) {
+            const ms = new Date(scan.timestamp).getTime() - new Date(prev.timestamp).getTime();
+            if (ms > 0 && ms < 1000 * 60 * 60 * 48) durations.push(ms / 60000);
+          }
+        } else if (scan.action === "station_reject" || scan.action === "qc_reject") {
+          rejectedToday++;
+        }
+      });
     });
-    const avgMinutes = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+
+    const avgMinutes = durations.length
+      ? durations.reduce((a, b) => a + b, 0) / durations.length
+      : null;
 
     return {
       stationId: s.id,
@@ -70,24 +97,30 @@ function formatMinutes(m: number | null) {
 export default function Reports() {
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().split("T")[0]);
   const date = useMemo(() => new Date(dateStr), [dateStr]);
+  const [tick, setTick] = useState(0);
 
-  // For mock data dates are 2026-01-15..onward; allow user to pick a sample-rich day
+  // Live refresh — SCAN_LOG mutates outside React so poll its length
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 3000);
+    return () => clearInterval(id);
+  }, []);
+
   const projectReports = useMemo(
     () =>
       PROJECTS.map(p => {
-        const items = PROJECT_ITEMS[p.id] || [];
-        const stations = computeStationStats(items, date);
+        const stations = computeStationStats(p.id, date);
         const totals = stations.reduce(
           (acc, s) => ({
             inStation: acc.inStation + s.inStation,
             completed: acc.completed + s.completedToday,
             rejected: acc.rejected + s.rejectedToday,
           }),
-          { inStation: 0, completed: 0, rejected: 0 }
+          { inStation: 0, completed: 0, rejected: 0 },
         );
         return { project: p, stations, totals };
       }),
-    [date]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [date, tick, SCAN_LOG.length],
   );
 
   const grandTotals = projectReports.reduce(
@@ -96,20 +129,27 @@ export default function Reports() {
       completed: acc.completed + r.totals.completed,
       rejected: acc.rejected + r.totals.rejected,
     }),
-    { inStation: 0, completed: 0, rejected: 0 }
+    { inStation: 0, completed: 0, rejected: 0 },
+  );
+
+  const totalScansToday = useMemo(
+    () => SCAN_LOG.filter(s => isSameDay(s.timestamp, date)).length,
+    [date, tick],
   );
 
   const buildEmailBody = () => {
     const lines: string[] = [];
     lines.push(`דוח יומי - ${dateStr}`);
     lines.push("");
-    lines.push(`סה"כ בתחנות: ${grandTotals.inStation} | הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`);
+    lines.push(
+      `סה"כ בתחנות: ${grandTotals.inStation} | הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
+    );
     lines.push("");
     projectReports.forEach(r => {
       lines.push(`== ${r.project.name} ==`);
       r.stations.forEach(s => {
         lines.push(
-          `${s.stationName}: בתחנה ${s.inStation} | הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`
+          `${s.stationName}: בתחנה ${s.inStation} | הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
         );
       });
       lines.push("");
@@ -133,7 +173,9 @@ export default function Reports() {
           </div>
           <div>
             <h2 className="text-lg font-bold text-foreground">דוח ייצור יומי</h2>
-            <p className="text-xs text-muted-foreground">סיכום ביצועים לפי פרויקט ותחנה</p>
+            <p className="text-xs text-muted-foreground">
+              מבוסס על {totalScansToday.toLocaleString()} סריקות שבוצעו בתאריך הנבחר
+            </p>
           </div>
         </div>
 
@@ -145,6 +187,14 @@ export default function Reports() {
             onChange={e => setDateStr(e.target.value)}
             className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
           />
+          <button
+            onClick={() => setTick(t => t + 1)}
+            className="h-10 w-10 inline-flex items-center justify-center rounded-lg border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            title="רענון"
+            aria-label="רענון"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
           <button
             onClick={handleEmail}
             className="h-10 inline-flex items-center gap-2 px-4 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition"
