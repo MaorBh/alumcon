@@ -86,8 +86,26 @@ export default function BimViewer({
   const [translating, setTranslating] = useState(false);
   const [transProgress, setTransProgress] = useState(0);
   const [transMsg, setTransMsg]       = useState("");
+  const [transStartTs, setTransStartTs] = useState<number | null>(null);
+  const [transEtaSec, setTransEtaSec] = useState<number | null>(null);
+  const [backoffUntil, setBackoffUntil] = useState<number | null>(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+  type AttemptEntry = { ts: number; kind: "info" | "ok" | "warn" | "error"; text: string };
+  const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [viewerLoaded, setViewerLoaded] = useState(false);
   const [, forceRepaint]              = useState(0);
+
+  function pushAttempt(kind: AttemptEntry["kind"], text: string) {
+    setAttempts(a => [...a, { ts: Date.now(), kind, text }].slice(-50));
+  }
+
+  // Live clock for elapsed/ETA/backoff countdown — ticks only when needed
+  useEffect(() => {
+    if (!translating && !uploading && !backoffUntil) return;
+    const id = setInterval(() => setNowTs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [translating, uploading, backoffUntil]);
 
   // Available-models panel
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
@@ -196,31 +214,74 @@ export default function BimViewer({
 
   // ─── Translation polling ──────────────────────────────────────────────────
   function loadModel(modelUrn: string) {
-    setTranslating(true); setTransMsg("בודק סטטוס המרה...");
+    setTranslating(true);
+    setTransMsg("בודק סטטוס המרה...");
+    setTransProgress(0);
+    setTransStartTs(Date.now());
+    setTransEtaSec(null);
+    setBackoffUntil(null);
+    setAttempts([]);
+    pushAttempt("info", "מתחיל בדיקת סטטוס המרה");
     pollTranslation(modelUrn);
   }
+
+  // Track previous progress sample for ETA calculation
+  const lastProgressRef = useRef<{ pct: number; ts: number } | null>(null);
 
   async function pollTranslation(modelUrn: string, failCount = 0) {
     try {
       const s = await fetch(API_URL + "/api/translate-status/" + encodeURIComponent(modelUrn)).then(r => r.json());
-      if (s.status === "success") { setTranslating(false); setTransMsg(""); startLoadingModel(modelUrn); }
-      else if (s.status === "failed") {
-        // Auto-retry translation up to 3 times before giving up
+      if (s.status === "success") {
+        pushAttempt("ok", "המרה הושלמה — טוען מודל");
+        setTransProgress(100); setTransEtaSec(0);
+        setTranslating(false); setTransMsg(""); setBackoffUntil(null);
+        startLoadingModel(modelUrn);
+      } else if (s.status === "failed") {
         if (failCount < 3) {
+          const wait = 5000;
+          pushAttempt("warn", `המרה נכשלה — ניסיון חוזר ${failCount + 1}/3 בעוד ${wait/1000}ש`);
           setTransMsg(`המרה נכשלה — מנסה שוב (${failCount + 1}/3)...`);
-          setTimeout(() => pollTranslation(modelUrn, failCount + 1), 5000);
+          setBackoffUntil(Date.now() + wait);
+          setTimeout(() => { setBackoffUntil(null); pollTranslation(modelUrn, failCount + 1); }, wait);
         } else {
+          pushAttempt("error", "ההמרה נכשלה לאחר 3 ניסיונות");
           setTranslating(false); setTransMsg("שגיאה בהמרה — נסה להעלות שוב");
+          setBackoffUntil(null);
         }
+      } else {
+        const pct = parseInt(s.progress) || 0;
+        const now = Date.now();
+        // Estimate ETA from progress rate
+        const prev = lastProgressRef.current;
+        if (prev && pct > prev.pct) {
+          const dPct = pct - prev.pct;
+          const dSec = (now - prev.ts) / 1000;
+          const rate = dPct / dSec; // pct per second
+          if (rate > 0) setTransEtaSec(Math.max(1, Math.round((100 - pct) / rate)));
+        } else if (!prev && transStartTs && pct > 0) {
+          const elapsedSec = (now - transStartTs) / 1000;
+          if (elapsedSec > 0) setTransEtaSec(Math.round((100 - pct) / (pct / elapsedSec)));
+        }
+        if (!prev || pct !== prev.pct) {
+          lastProgressRef.current = { pct, ts: now };
+          if (pct === 0 || pct % 10 === 0 || (prev && pct - prev.pct >= 10)) {
+            pushAttempt("info", `התקדמות המרה: ${pct}%`);
+          }
+        }
+        setTransProgress(pct);
+        setTransMsg("ממיר מודל... " + pct + "%");
+        if (failCount > 0) setBackoffUntil(null);
+        setTimeout(() => pollTranslation(modelUrn, 0), 4000);
       }
-      else { const pct = parseInt(s.progress) || 0; setTransProgress(pct); setTransMsg("ממיר מודל... " + pct + "%"); setTimeout(() => pollTranslation(modelUrn, failCount), 4000); }
     } catch {
-      // Network / server error — retry indefinitely with backoff (server cold start)
       const wait = Math.min(15000, 3000 + failCount * 2000);
+      pushAttempt("warn", `שרת לא זמין — ניסיון חוזר ${failCount + 1} בעוד ${Math.round(wait/1000)}ש`);
       setTransMsg(`ממתין לשרת... (ניסיון ${failCount + 1})`);
-      setTimeout(() => pollTranslation(modelUrn, failCount + 1), wait);
+      setBackoffUntil(Date.now() + wait);
+      setTimeout(() => { setBackoffUntil(null); pollTranslation(modelUrn, failCount + 1); }, wait);
     }
   }
+
 
   function startLoadingModel(modelUrn: string) {
     const viewer = viewerRef.current; if (!viewer) return;
@@ -382,6 +443,8 @@ export default function BimViewer({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true); setUploadError(""); setUploadPct(0);
+    setAttempts([]); setBackoffUntil(null);
+    pushAttempt("info", `מתחיל העלאה: ${file.name} (${(file.size/1048576).toFixed(1)} MB)`);
 
     const MAX_RETRIES = 3;
 
@@ -391,7 +454,7 @@ export default function BimViewer({
         setUploadMsg("מעלה " + file.name + "..." + label);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", API_URL + "/api/upload-model/" + projectId);
-        xhr.timeout = 10 * 60 * 1000; // 10 min for large files / cold-start translation
+        xhr.timeout = 10 * 60 * 1000;
         xhr.upload.onprogress = ev => {
           if (ev.lengthComputable) {
             const pct = Math.round(ev.loaded / ev.total * 100);
@@ -416,23 +479,32 @@ export default function BimViewer({
 
     let lastErr: any = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      pushAttempt("info", `ניסיון העלאה ${attempt}/${MAX_RETRIES}`);
       try {
         const newUrn = await attemptUpload(attempt);
+        pushAttempt("ok", `העלאה הושלמה — URN התקבל`);
         setLocalUrn(projectId, newUrn); setUrn(newUrn);
         setUploading(false); setUploadMsg(""); setUploadError("");
+        setBackoffUntil(null);
         e.target.value = "";
         return;
       } catch (err: any) {
         lastErr = err;
+        pushAttempt("error", `ניסיון ${attempt} נכשל: ${err.message}`);
         if (attempt < MAX_RETRIES) {
           const wait = attempt * 3000;
-          setUploadMsg(`שגיאה: ${err.message} — ממתין ${wait/1000}ש לפני ניסיון חוזר...`);
+          pushAttempt("warn", `המתנה ${wait/1000}ש לפני ניסיון חוזר`);
+          setBackoffUntil(Date.now() + wait);
+          setUploadMsg(`שגיאה: ${err.message}`);
           await new Promise(r => setTimeout(r, wait));
+          setBackoffUntil(null);
         }
       }
     }
+    pushAttempt("error", `ההעלאה נכשלה סופית לאחר ${MAX_RETRIES} ניסיונות`);
     setUploadError(`ההעלאה נכשלה לאחר ${MAX_RETRIES} ניסיונות: ${lastErr?.message || "שגיאה לא ידועה"}`);
     setUploading(false);
+    setBackoffUntil(null);
     e.target.value = "";
   }
 
@@ -474,9 +546,30 @@ export default function BimViewer({
           </button>
         </div>
         {uploading && (
-          <div className="w-64 space-y-1">
+          <div className="w-80 space-y-2">
             <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: uploadPct + "%" }} /></div>
             <p className="text-xs text-center text-muted-foreground">{uploadMsg}</p>
+            {backoffUntil && backoffUntil > nowTs && (
+              <p className="text-xs text-center text-yellow-400">
+                ניסיון חוזר בעוד {Math.max(0, Math.ceil((backoffUntil - nowTs) / 1000))}ש
+              </p>
+            )}
+            {attempts.length > 0 && (
+              <details className="text-right">
+                <summary className="text-[10px] text-primary cursor-pointer">היסטוריית ניסיונות ({attempts.length})</summary>
+                <div className="mt-1 max-h-32 overflow-y-auto bg-muted/30 rounded p-2 space-y-0.5">
+                  {[...attempts].reverse().map((a, i) => (
+                    <div key={i} className={`text-[10px] ${
+                      a.kind === "ok" ? "text-green-400" :
+                      a.kind === "warn" ? "text-yellow-400" :
+                      a.kind === "error" ? "text-destructive" : "text-muted-foreground"
+                    }`}>
+                      {new Date(a.ts).toLocaleTimeString("he-IL")} — {a.text}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
         {showModels && (
@@ -529,14 +622,63 @@ export default function BimViewer({
         <div className="glass-card overflow-hidden relative" style={{ height: "600px" }}>
           <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
-          {translating && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur border border-border rounded-lg px-4 py-2 flex items-center gap-3 z-10">
-              <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: transProgress + "%" }} />
+          {translating && (() => {
+            const elapsedSec = transStartTs ? Math.round((nowTs - transStartTs) / 1000) : 0;
+            const fmt = (s: number) => {
+              const m = Math.floor(s / 60), ss = s % 60;
+              return m > 0 ? `${m}:${String(ss).padStart(2,"0")}` : `${ss}ש`;
+            };
+            const backoffSec = backoffUntil ? Math.max(0, Math.ceil((backoffUntil - nowTs) / 1000)) : 0;
+            const kindClr: Record<AttemptEntry["kind"], string> = {
+              info:  "text-muted-foreground",
+              ok:    "text-green-400",
+              warn:  "text-yellow-400",
+              error: "text-destructive",
+            };
+            return (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[420px] max-w-[92%] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl z-10 overflow-hidden">
+                <div className="px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold">{transMsg || "ממיר מודל..."}</span>
+                    <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{transProgress}%</span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: transProgress + "%" }} />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+                    <span>חלף: {fmt(elapsedSec)}</span>
+                    <span>
+                      {backoffSec > 0
+                        ? <span className="text-yellow-400">ניסיון חוזר בעוד {backoffSec}ש</span>
+                        : transEtaSec != null
+                          ? <>נותר משוער: ~{fmt(transEtaSec)}</>
+                          : <>מחשב זמן משוער...</>}
+                    </span>
+                    <button
+                      onClick={() => setShowHistory(h => !h)}
+                      className="text-primary hover:underline">
+                      היסטוריה ({attempts.length}) {showHistory ? "▲" : "▼"}
+                    </button>
+                  </div>
+                </div>
+                {showHistory && (
+                  <div className="border-t border-border max-h-40 overflow-y-auto bg-muted/20 px-3 py-2 space-y-1">
+                    {attempts.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground text-center py-2">אין רשומות עדיין</p>
+                    ) : [...attempts].reverse().map((a, i) => {
+                      const rel = transStartTs ? Math.round((a.ts - transStartTs) / 1000) : 0;
+                      return (
+                        <div key={i} className="flex items-start gap-2 text-[10px]">
+                          <span className="font-mono tabular-nums text-muted-foreground/60 shrink-0 w-10">+{rel}ש</span>
+                          <span className={`${kindClr[a.kind]} flex-1`}>{a.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <span className="text-xs text-muted-foreground">{transMsg}</span>
-            </div>
-          )}
+            );
+          })()}
           {transMsg && !translating && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-2 z-10">
               <span className="text-xs text-destructive">{transMsg}</span>
