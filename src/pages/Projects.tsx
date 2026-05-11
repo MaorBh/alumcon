@@ -16,6 +16,7 @@ export default function Projects() {
       sides: data.sides,
       floors: Array.from({ length: data.floorTo - data.floorFrom + 1 }, (_, i) => data.floorFrom + i),
       unitsPerFloor: data.unitsPerFloor,
+      importedItems: data.parsedItems?.length > 0 ? data.parsedItems : undefined,
     });
     forceUpdate(n => n + 1);
   };
