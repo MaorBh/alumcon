@@ -546,9 +546,30 @@ export default function BimViewer({
           </button>
         </div>
         {uploading && (
-          <div className="w-64 space-y-1">
+          <div className="w-80 space-y-2">
             <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary rounded-full transition-all" style={{ width: uploadPct + "%" }} /></div>
             <p className="text-xs text-center text-muted-foreground">{uploadMsg}</p>
+            {backoffUntil && backoffUntil > nowTs && (
+              <p className="text-xs text-center text-yellow-400">
+                ניסיון חוזר בעוד {Math.max(0, Math.ceil((backoffUntil - nowTs) / 1000))}ש
+              </p>
+            )}
+            {attempts.length > 0 && (
+              <details className="text-right">
+                <summary className="text-[10px] text-primary cursor-pointer">היסטוריית ניסיונות ({attempts.length})</summary>
+                <div className="mt-1 max-h-32 overflow-y-auto bg-muted/30 rounded p-2 space-y-0.5">
+                  {[...attempts].reverse().map((a, i) => (
+                    <div key={i} className={`text-[10px] ${
+                      a.kind === "ok" ? "text-green-400" :
+                      a.kind === "warn" ? "text-yellow-400" :
+                      a.kind === "error" ? "text-destructive" : "text-muted-foreground"
+                    }`}>
+                      {new Date(a.ts).toLocaleTimeString("he-IL")} — {a.text}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
         {showModels && (
