@@ -38,22 +38,24 @@ const App = () => (
             <Route path="/scan/station" element={<StationScan />} />
             <Route path="/scan/qc" element={<QcScan />} />
 
-            {/* Main admin app - protected */}
+            {/* Main admin app - protected, desktop only */}
             <Route
               path="/*"
               element={
-                <RequireAuth>
-                  <AppLayout>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/projects" element={<Projects />} />
-                      <Route path="/projects/:id" element={<ProjectDetail />} />
-                      <Route path="/items" element={<Items />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </AppLayout>
-                </RequireAuth>
+                <MobileGate>
+                  <RequireAuth>
+                    <AppLayout>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/projects" element={<Projects />} />
+                        <Route path="/projects/:id" element={<ProjectDetail />} />
+                        <Route path="/items" element={<Items />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </AppLayout>
+                  </RequireAuth>
+                </MobileGate>
               }
             />
           </Routes>
