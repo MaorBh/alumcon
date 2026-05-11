@@ -314,7 +314,7 @@ export default function BimViewer({
           });
         });
         items.forEach(item => {
-          for (const key of [item.barcode, item.id]) {
+          for (const key of ([item.barcode, item.id, item.ifcGuid].filter(Boolean) as string[])) {
             if (propMap[key] != null) {
               dbIdToItemId.current[propMap[key]] = item.id;
               itemIdToDbId.current[item.id] = propMap[key];
