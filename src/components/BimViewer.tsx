@@ -601,14 +601,63 @@ export default function BimViewer({
         <div className="glass-card overflow-hidden relative" style={{ height: "600px" }}>
           <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
-          {translating && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur border border-border rounded-lg px-4 py-2 flex items-center gap-3 z-10">
-              <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: transProgress + "%" }} />
+          {translating && (() => {
+            const elapsedSec = transStartTs ? Math.round((nowTs - transStartTs) / 1000) : 0;
+            const fmt = (s: number) => {
+              const m = Math.floor(s / 60), ss = s % 60;
+              return m > 0 ? `${m}:${String(ss).padStart(2,"0")}` : `${ss}ש`;
+            };
+            const backoffSec = backoffUntil ? Math.max(0, Math.ceil((backoffUntil - nowTs) / 1000)) : 0;
+            const kindClr: Record<AttemptEntry["kind"], string> = {
+              info:  "text-muted-foreground",
+              ok:    "text-green-400",
+              warn:  "text-yellow-400",
+              error: "text-destructive",
+            };
+            return (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[420px] max-w-[92%] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl z-10 overflow-hidden">
+                <div className="px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold">{transMsg || "ממיר מודל..."}</span>
+                    <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{transProgress}%</span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: transProgress + "%" }} />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+                    <span>חלף: {fmt(elapsedSec)}</span>
+                    <span>
+                      {backoffSec > 0
+                        ? <span className="text-yellow-400">ניסיון חוזר בעוד {backoffSec}ש</span>
+                        : transEtaSec != null
+                          ? <>נותר משוער: ~{fmt(transEtaSec)}</>
+                          : <>מחשב זמן משוער...</>}
+                    </span>
+                    <button
+                      onClick={() => setShowHistory(h => !h)}
+                      className="text-primary hover:underline">
+                      היסטוריה ({attempts.length}) {showHistory ? "▲" : "▼"}
+                    </button>
+                  </div>
+                </div>
+                {showHistory && (
+                  <div className="border-t border-border max-h-40 overflow-y-auto bg-muted/20 px-3 py-2 space-y-1">
+                    {attempts.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground text-center py-2">אין רשומות עדיין</p>
+                    ) : [...attempts].reverse().map((a, i) => {
+                      const rel = transStartTs ? Math.round((a.ts - transStartTs) / 1000) : 0;
+                      return (
+                        <div key={i} className="flex items-start gap-2 text-[10px]">
+                          <span className="font-mono tabular-nums text-muted-foreground/60 shrink-0 w-10">+{rel}ש</span>
+                          <span className={`${kindClr[a.kind]} flex-1`}>{a.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <span className="text-xs text-muted-foreground">{transMsg}</span>
-            </div>
-          )}
+            );
+          })()}
           {transMsg && !translating && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-2 z-10">
               <span className="text-xs text-destructive">{transMsg}</span>
