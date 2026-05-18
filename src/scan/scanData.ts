@@ -20,6 +20,55 @@ export interface ScanRecord {
 
 export const SCAN_LOG: ScanRecord[] = [];
 
+// Seed sample scan photos for demo so users can see the gallery UI.
+const DEMO_PHOTOS = [
+  "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=600&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1565793979206-6d144d6b5fb6?w=600&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=600&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1597844808175-3a7e0bf2b3b9?w=600&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=600&auto=format&fit=crop",
+];
+
+(function seedDemoScans() {
+  let seeded = 0;
+  for (const projectId of Object.keys(PROJECT_ITEMS)) {
+    const items = PROJECT_ITEMS[projectId];
+    if (!items || items.length === 0) continue;
+    const targets = items.slice(0, 2);
+    targets.forEach((item, idx) => {
+      const baseTime = Date.now() - (seeded + 1) * 3600_000;
+      SCAN_LOG.push({
+        id: `demo-${projectId}-${item.id}-1`,
+        itemId: item.id,
+        projectId,
+        barcode: item.barcode,
+        username: "מפעיל הדגמה",
+        action: "station_pass",
+        stationId: STATIONS[0].id,
+        notes: "סריקת תחילת תהליך",
+        photos: [DEMO_PHOTOS[(seeded * 2) % DEMO_PHOTOS.length], DEMO_PHOTOS[(seeded * 2 + 1) % DEMO_PHOTOS.length]],
+        timestamp: new Date(baseTime).toISOString(),
+      });
+      if (idx === 0) {
+        SCAN_LOG.push({
+          id: `demo-${projectId}-${item.id}-2`,
+          itemId: item.id,
+          projectId,
+          barcode: item.barcode,
+          username: "בקר איכות",
+          action: "qc_pass",
+          stationId: STATIONS[1]?.id,
+          notes: "בדיקת איכות עברה בהצלחה",
+          photos: [DEMO_PHOTOS[(seeded + 2) % DEMO_PHOTOS.length]],
+          timestamp: new Date(baseTime + 1800_000).toISOString(),
+        });
+      }
+      seeded++;
+    });
+  }
+})();
+
 export function findItemByBarcode(barcode: string): { item: ProjectItem; projectId: string } | null {
   const code = barcode.trim();
   if (!code) return null;
