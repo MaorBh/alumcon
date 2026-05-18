@@ -24,7 +24,7 @@ interface ProjectFormData {
   parsedItems: ImportedItem[];
 }
 
-const STEPS = ["פרטי פרויקט", "הגדרת מבנה", "תחנות ייצור", "העלאת קובץ", "סיכום"];
+const STEPS = ["פרטי פרויקט", "העלאת קובץ", "סיכום"];
 
 interface Props {
   open: boolean;
