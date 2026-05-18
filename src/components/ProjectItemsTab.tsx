@@ -4,8 +4,14 @@ import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcSt
 import StatusBadge from "@/components/StatusBadge";
 import ItemPhotosDialog from "@/components/ItemPhotosDialog";
 import { SCAN_LOG } from "@/scan/scanData";
-import { Search, ImageIcon, RotateCcw } from "lucide-react";
+import { Search, ImageIcon, RotateCcw, ChevronDown, Check } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const qcLabel: Record<QcStatus, string> = {
   not_checked: "טרם נבדק",
@@ -185,39 +191,76 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
                     <td className="px-4 py-3 text-xs font-inter tabular-nums">{item.unit}</td>
                     <td className="px-4 py-3 text-xs">{currentStationName}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={item.status} />
-                        <select
-                          value={item.status}
-                          onChange={e => handleStatusChange(item.id, e.target.value as ItemStatus)}
-                          className={selectClass}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          className="inline-flex items-center gap-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:opacity-90 transition"
                           aria-label="עדכון סטטוס"
                         >
+                          <StatusBadge status={item.status} />
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[140px]">
                           {STATUS_OPTIONS.map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
+                            <DropdownMenuItem
+                              key={o.value}
+                              onSelect={() => handleStatusChange(item.id, o.value)}
+                              className="text-xs justify-between gap-2"
+                            >
+                              <span>{o.label}</span>
+                              {item.status === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
+                            </DropdownMenuItem>
                           ))}
-                        </select>
-                      </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-medium whitespace-nowrap ${
-                          qcStatus === "approved" ? "text-status-completed" :
-                          qcStatus === "failed" ? "text-status-rejected" : "text-muted-foreground"
-                        }`}>{qcLabel[qcStatus]}</span>
-                        {canEditQc && (
-                          <select
-                            value={qcStatus}
-                            onChange={e => handleQcChange(item.id, e.target.value as QcStatus)}
-                            className={selectClass}
+                      {canEditQc ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            className={`inline-flex items-center gap-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:opacity-90 transition status-badge border ${
+                              qcStatus === "approved"
+                                ? "bg-status-completed/15 text-status-completed border-status-completed/30"
+                                : qcStatus === "failed"
+                                ? "bg-status-rejected/15 text-status-rejected border-status-rejected/30"
+                                : "bg-muted/40 text-muted-foreground border-border"
+                            }`}
                             aria-label="עדכון QC"
                           >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              qcStatus === "approved" ? "bg-status-completed" :
+                              qcStatus === "failed" ? "bg-status-rejected" : "bg-muted-foreground"
+                            }`} />
+                            {qcLabel[qcStatus]}
+                            <ChevronDown className="w-3 h-3 opacity-70" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[140px]">
                             {QC_OPTIONS.map(o => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
+                              <DropdownMenuItem
+                                key={o.value}
+                                onSelect={() => handleQcChange(item.id, o.value)}
+                                className="text-xs justify-between gap-2"
+                              >
+                                <span>{o.label}</span>
+                                {qcStatus === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
+                              </DropdownMenuItem>
                             ))}
-                          </select>
-                        )}
-                      </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className={`status-badge border ${
+                          qcStatus === "approved"
+                            ? "bg-status-completed/15 text-status-completed border-status-completed/30"
+                            : qcStatus === "failed"
+                            ? "bg-status-rejected/15 text-status-rejected border-status-rejected/30"
+                            : "bg-muted/40 text-muted-foreground border-border"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            qcStatus === "approved" ? "bg-status-completed" :
+                            qcStatus === "failed" ? "bg-status-rejected" : "bg-muted-foreground"
+                          }`} />
+                          {qcLabel[qcStatus]}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <button
