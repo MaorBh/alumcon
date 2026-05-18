@@ -195,11 +195,7 @@ export default function Reports() {
       </div>
 
       {/* Grand totals */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="surface-card p-5">
-          <div className="text-xs text-muted-foreground mb-1">פריטים פעילים בתחנות</div>
-          <div className="text-3xl font-bold font-inter tabular-nums text-foreground">{grandTotals.inStation}</div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="surface-card p-5">
           <div className="text-xs text-muted-foreground mb-1">בוצעו היום</div>
           <div className="text-3xl font-bold font-inter tabular-nums text-status-completed">{grandTotals.completed}</div>
