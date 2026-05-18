@@ -6,7 +6,6 @@ import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
 interface StationStats {
   stationId: StationId;
   stationName: string;
-  inStation: number;
   completedToday: number;
   rejectedToday: number;
   avgMinutes: number | null;
