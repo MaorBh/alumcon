@@ -159,7 +159,7 @@ export default function ProjectDetail() {
             <h3 className="text-lg font-bold">סטטוס תחנות</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {projectStationStats.map(s => (
-                <StationCard key={s.id} name={s.name} stationId={s.id} active={s.active} completed={s.completed} rejected={s.rejected} />
+                <StationCard key={s.id} name={s.name} stationId={s.id} completed={s.completed} rejected={s.rejected} />
               ))}
             </div>
           </div>
