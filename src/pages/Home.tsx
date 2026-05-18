@@ -23,7 +23,6 @@ export default function Home() {
     const items = PROJECT_ITEMS[stationsProjectId] || [];
     return STATIONS.map(s => ({
       ...s,
-      active: items.filter(i => i.currentStation === s.id && i.status === "in_progress").length,
       completed: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "pass")).length,
       rejected: items.filter(i => i.stationHistory.some(h => h.station === s.id && h.result === "fail")).length,
     }));
