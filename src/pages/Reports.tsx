@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PROJECTS, PROJECT_ITEMS, STATIONS, StationId } from "@/data/mockData";
+import { PROJECTS, STATIONS, StationId } from "@/data/mockData";
 import { SCAN_LOG, ScanRecord } from "@/scan/scanData";
 import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
 
