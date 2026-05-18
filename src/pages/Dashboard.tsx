@@ -66,7 +66,7 @@ export default function Dashboard() {
                 key={s.id}
                 name={s.name}
                 stationId={s.id}
-                active={s.active}
+                
                 completed={s.completed}
                 rejected={s.rejected}
               />

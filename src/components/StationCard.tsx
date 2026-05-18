@@ -12,13 +12,12 @@ const stationColors: Record<StationId, string> = {
 interface StationCardProps {
   name: string;
   stationId: StationId;
-  active: number;
   completed: number;
   rejected: number;
 }
 
-export default function StationCard({ name, stationId, active, completed, rejected }: StationCardProps) {
-  const total = active + completed + rejected;
+export default function StationCard({ name, stationId, completed, rejected }: StationCardProps) {
+  const total = completed + rejected;
   const completedPct = total > 0 ? (completed / total) * 100 : 0;
   const color = stationColors[stationId];
 
@@ -37,11 +36,7 @@ export default function StationCard({ name, stationId, active, completed, reject
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <div className="text-center">
-          <p className="text-base font-bold font-inter tabular-nums">{active}</p>
-          <p className="text-[10px] text-muted-foreground">פעיל</p>
-        </div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="text-center">
           <p className="text-base font-bold font-inter tabular-nums text-status-completed">{completed}</p>
           <p className="text-[10px] text-muted-foreground">הושלם</p>

@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { PROJECTS, PROJECT_ITEMS, STATIONS, StationId } from "@/data/mockData";
+import { PROJECTS, STATIONS, StationId } from "@/data/mockData";
 import { SCAN_LOG, ScanRecord } from "@/scan/scanData";
 import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
 
 interface StationStats {
   stationId: StationId;
   stationName: string;
-  inStation: number;
   completedToday: number;
   rejectedToday: number;
   avgMinutes: number | null;
@@ -23,15 +22,12 @@ function isSameDay(iso: string, date: Date) {
 
 /**
  * Compute stats from the live SCAN_LOG (real scans) for a single project.
- * - inStation: items currently sitting at this station (from item state, updated by scans)
  * - completedToday: count of station_pass scans at this station today
  * - rejectedToday: count of station_reject + qc_reject scans at this station today
  * - avgMinutes: avg time between the previous scan on the same item and the
  *   scan that landed it at this station (today)
  */
 function computeStationStats(projectId: string, date: Date): StationStats[] {
-  const items = PROJECT_ITEMS[projectId] || [];
-
   // Index project scans chronologically by item
   const projectScans = SCAN_LOG
     .filter(s => s.projectId === projectId)
@@ -45,10 +41,6 @@ function computeStationStats(projectId: string, date: Date): StationStats[] {
   }
 
   return STATIONS.map(s => {
-    const inStation = items.filter(
-      i => i.currentStation === s.id && i.status === "in_progress",
-    ).length;
-
     let completedToday = 0;
     let rejectedToday = 0;
     const durations: number[] = [];
@@ -78,7 +70,6 @@ function computeStationStats(projectId: string, date: Date): StationStats[] {
     return {
       stationId: s.id,
       stationName: s.name,
-      inStation,
       completedToday,
       rejectedToday,
       avgMinutes,
@@ -111,11 +102,10 @@ export default function Reports() {
         const stations = computeStationStats(p.id, date);
         const totals = stations.reduce(
           (acc, s) => ({
-            inStation: acc.inStation + s.inStation,
             completed: acc.completed + s.completedToday,
             rejected: acc.rejected + s.rejectedToday,
           }),
-          { inStation: 0, completed: 0, rejected: 0 },
+          { completed: 0, rejected: 0 },
         );
         return { project: p, stations, totals };
       }),
@@ -125,11 +115,10 @@ export default function Reports() {
 
   const grandTotals = projectReports.reduce(
     (acc, r) => ({
-      inStation: acc.inStation + r.totals.inStation,
       completed: acc.completed + r.totals.completed,
       rejected: acc.rejected + r.totals.rejected,
     }),
-    { inStation: 0, completed: 0, rejected: 0 },
+    { completed: 0, rejected: 0 },
   );
 
   const totalScansToday = useMemo(
@@ -142,14 +131,14 @@ export default function Reports() {
     lines.push(`דוח יומי - ${dateStr}`);
     lines.push("");
     lines.push(
-      `סה"כ בתחנות: ${grandTotals.inStation} | הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
+      `הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
     );
     lines.push("");
     projectReports.forEach(r => {
       lines.push(`== ${r.project.name} ==`);
       r.stations.forEach(s => {
         lines.push(
-          `${s.stationName}: בתחנה ${s.inStation} | הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
+          `${s.stationName}: הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
         );
       });
       lines.push("");
@@ -206,11 +195,7 @@ export default function Reports() {
       </div>
 
       {/* Grand totals */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="surface-card p-5">
-          <div className="text-xs text-muted-foreground mb-1">פריטים פעילים בתחנות</div>
-          <div className="text-3xl font-bold font-inter tabular-nums text-foreground">{grandTotals.inStation}</div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="surface-card p-5">
           <div className="text-xs text-muted-foreground mb-1">בוצעו היום</div>
           <div className="text-3xl font-bold font-inter tabular-nums text-status-completed">{grandTotals.completed}</div>
@@ -230,7 +215,6 @@ export default function Reports() {
               <p className="text-xs text-muted-foreground">{r.project.description}</p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <span className="text-muted-foreground">בתחנות: <span className="font-semibold text-foreground font-inter tabular-nums">{r.totals.inStation}</span></span>
               <span className="text-muted-foreground">הושלמו: <span className="font-semibold text-status-completed font-inter tabular-nums">{r.totals.completed}</span></span>
               <span className="text-muted-foreground">פסולים: <span className="font-semibold text-status-rejected font-inter tabular-nums">{r.totals.rejected}</span></span>
             </div>
@@ -239,7 +223,7 @@ export default function Reports() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/20">
-                  {["תחנה", "פעיל בתחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
+                  {["תחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
                     <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                       {h}
                     </th>
@@ -250,7 +234,6 @@ export default function Reports() {
                 {r.stations.map(s => (
                   <tr key={s.stationId} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{s.stationName}</td>
-                    <td className="px-4 py-3 text-xs font-inter tabular-nums">{s.inStation}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-completed">{s.completedToday}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-rejected">{s.rejectedToday}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-muted-foreground">{formatMinutes(s.avgMinutes)}</td>
