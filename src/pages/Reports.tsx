@@ -215,7 +215,6 @@ export default function Reports() {
               <p className="text-xs text-muted-foreground">{r.project.description}</p>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <span className="text-muted-foreground">בתחנות: <span className="font-semibold text-foreground font-inter tabular-nums">{r.totals.inStation}</span></span>
               <span className="text-muted-foreground">הושלמו: <span className="font-semibold text-status-completed font-inter tabular-nums">{r.totals.completed}</span></span>
               <span className="text-muted-foreground">פסולים: <span className="font-semibold text-status-rejected font-inter tabular-nums">{r.totals.rejected}</span></span>
             </div>
