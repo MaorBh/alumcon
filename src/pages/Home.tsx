@@ -171,7 +171,6 @@ export default function Home() {
               key={s.id}
               name={s.name}
               stationId={s.id}
-              active={s.active}
               completed={s.completed}
               rejected={s.rejected}
             />
