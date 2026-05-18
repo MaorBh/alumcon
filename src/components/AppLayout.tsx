@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   FolderKanban,
-  ScanBarcode,
   Settings,
   ChevronRight,
   Menu,
@@ -20,7 +19,6 @@ import { useNavigate } from "react-router-dom";
 const navItems = [
   { path: "/", label: "מבט על", icon: LayoutDashboard },
   { path: "/projects", label: "פרויקטים", icon: FolderKanban },
-  { path: "/items", label: "פריטים", icon: ScanBarcode },
   { path: "/reports", label: "דוחות", icon: FileBarChart2 },
   { path: "/settings", label: "הגדרות", icon: Settings },
 ];

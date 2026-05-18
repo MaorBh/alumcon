@@ -4,7 +4,7 @@ import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcSt
 import StatusBadge from "@/components/StatusBadge";
 import ItemPhotosDialog from "@/components/ItemPhotosDialog";
 import { SCAN_LOG } from "@/scan/scanData";
-import { Search, ImageIcon } from "lucide-react";
+import { Search, ImageIcon, RotateCcw } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 
 const qcLabel: Record<QcStatus, string> = {
@@ -140,6 +140,22 @@ export default function ProjectItemsTab({ items }: { items: ProjectItem[] }) {
             <option key={u} value={String(u)}>מיקום {u}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => {
+            setSearch("");
+            setStatusFilter("all");
+            setStationFilter("all");
+            setSideFilter("all");
+            setFloorFilter("all");
+            setUnitFilter("all");
+          }}
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-border bg-background/60 text-xs text-foreground hover:bg-secondary hover:border-primary transition"
+          title="איפוס סינון"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          איפוס סינון
+        </button>
         <span className="text-xs text-muted-foreground mr-auto">
           מציג <span className="font-inter font-semibold text-foreground tabular-nums">{filtered.length}</span> מתוך <span className="font-inter tabular-nums">{items.length}</span>
         </span>
