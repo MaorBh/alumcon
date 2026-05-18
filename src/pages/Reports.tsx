@@ -102,11 +102,10 @@ export default function Reports() {
         const stations = computeStationStats(p.id, date);
         const totals = stations.reduce(
           (acc, s) => ({
-            inStation: acc.inStation + s.inStation,
             completed: acc.completed + s.completedToday,
             rejected: acc.rejected + s.rejectedToday,
           }),
-          { inStation: 0, completed: 0, rejected: 0 },
+          { completed: 0, rejected: 0 },
         );
         return { project: p, stations, totals };
       }),
@@ -116,11 +115,10 @@ export default function Reports() {
 
   const grandTotals = projectReports.reduce(
     (acc, r) => ({
-      inStation: acc.inStation + r.totals.inStation,
       completed: acc.completed + r.totals.completed,
       rejected: acc.rejected + r.totals.rejected,
     }),
-    { inStation: 0, completed: 0, rejected: 0 },
+    { completed: 0, rejected: 0 },
   );
 
   const totalScansToday = useMemo(
