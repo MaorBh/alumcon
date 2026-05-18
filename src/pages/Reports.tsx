@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { PROJECTS, STATIONS, StationId } from "@/data/mockData";
 import { SCAN_LOG } from "@/scan/scanData";
-import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
+import { FileBarChart2, Mail, Calendar as CalendarIcon, RefreshCw } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface StationStats {
   stationId: StationId;
