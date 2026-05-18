@@ -98,7 +98,8 @@ export default function Reports() {
     [fromDate, toDate, tick],
   );
 
-  const rangeLabel = fromStr === toStr ? fromStr : `${fromStr} ← ${toStr}`;
+  const fmt = (iso: string) => format(new Date(iso), "dd/MM/yyyy");
+  const rangeLabel = fromStr === toStr ? fmt(fromStr) : `${fmt(fromStr)} ← ${fmt(toStr)}`;
 
   const buildEmailBody = () => {
     const lines: string[] = [];
