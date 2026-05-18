@@ -138,7 +138,7 @@ export default function Reports() {
       lines.push(`== ${r.project.name} ==`);
       r.stations.forEach(s => {
         lines.push(
-          `${s.stationName}: בתחנה ${s.inStation} | הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
+          `${s.stationName}: הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
         );
       });
       lines.push("");
