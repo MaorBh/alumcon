@@ -24,7 +24,7 @@ interface ProjectFormData {
   parsedItems: ImportedItem[];
 }
 
-const STEPS = ["פרטי פרויקט", "הגדרת מבנה", "תחנות ייצור", "העלאת קובץ", "סיכום"];
+const STEPS = ["פרטי פרויקט", "העלאת קובץ", "סיכום"];
 
 interface Props {
   open: boolean;
@@ -163,8 +163,6 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
   const canNext = () => {
     if (step === 0) return form.name.trim().length > 0;
-    if (step === 1) return form.sides.length > 0 && form.floorFrom <= form.floorTo;
-    if (step === 2) return form.enabledStations.length > 0;
     return true;
   };
 
@@ -263,109 +261,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 1: Building config */}
+        {/* Step 1: File upload */}
         {step === 1 && (
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <Building2 className="w-4 h-4" /> חזיתות
-              </Label>
-              <div className="grid grid-cols-2 gap-2">
-                {ALL_SIDES.map(side => (
-                  <label
-                    key={side}
-                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      form.sides.includes(side)
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-muted-foreground"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={form.sides.includes(side)}
-                      onCheckedChange={() => toggleSide(side)}
-                    />
-                    <span className="text-sm">{side}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>טווח קומות</Label>
-              <div className="flex items-center gap-3">
-                <div className="space-y-1 flex-1">
-                  <span className="text-xs text-muted-foreground">מקומה</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.floorFrom}
-                    onChange={e => setForm(f => ({ ...f, floorFrom: Number(e.target.value) }))}
-                  />
-                </div>
-                <span className="mt-5 text-muted-foreground">—</span>
-                <div className="space-y-1 flex-1">
-                  <span className="text-xs text-muted-foreground">עד קומה</span>
-                  <Input
-                    type="number"
-                    min={form.floorFrom}
-                    value={form.floorTo}
-                    onChange={e => setForm(f => ({ ...f, floorTo: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>יחידות לקומה (לפי חזית)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {form.sides.map(side => (
-                  <div key={side} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">{side}</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={50}
-                      className="h-8 text-sm"
-                      value={form.unitsPerFloor[side] || 1}
-                      onChange={e => setForm(f => ({
-                        ...f,
-                        unitsPerFloor: { ...f.unitsPerFloor, [side]: Number(e.target.value) },
-                      }))}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Stations */}
-        {step === 2 && (
-          <div className="space-y-3">
-            <Label>בחר תחנות ייצור פעילות</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {STATIONS.map(station => (
-                <label
-                  key={station.id}
-                  className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    form.enabledStations.includes(station.id)
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-muted-foreground"
-                  }`}
-                >
-                  <Checkbox
-                    checked={form.enabledStations.includes(station.id)}
-                    onCheckedChange={() => toggleStation(station.id)}
-                  />
-                  <span className="text-sm">{station.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: File upload */}
-        {step === 3 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-1.5">
               <FileSpreadsheet className="w-4 h-4" /> העלאת קובץ פריטים (Excel / CSV)
@@ -415,8 +312,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 4: Summary */}
-        {step === 4 && (
+        {/* Step 2: Summary */}
+        {step === 2 && (
           <div className="space-y-4">
             <div className="glass-card p-4 space-y-3">
               <div className="flex justify-between">
@@ -430,32 +327,13 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">חזיתות</span>
-                <span className="text-sm">{form.sides.join(", ")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">קומות</span>
-                <span className="text-sm font-inter">{form.floorFrom}–{form.floorTo} ({form.floorTo - form.floorFrom + 1} קומות)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">תחנות</span>
-                <span className="text-sm">{form.enabledStations.length} מתוך {STATIONS.length}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">קובץ</span>
                 <span className="text-sm">{form.file ? form.file.name : "לא הועלה"}</span>
               </div>
-              {form.parsedItems.length > 0 ? (
+              {form.parsedItems.length > 0 && (
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">פריטים מהקובץ</span>
                   <span className="text-sm font-inter font-bold text-primary">{form.parsedItems.length}</span>
-                </div>
-              ) : (
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">סה״כ פריטים (משוער)</span>
-                  <span className="text-sm font-inter font-bold text-primary">
-                    {form.sides.reduce((sum, side) => sum + (form.unitsPerFloor[side] || 1) * (form.floorTo - form.floorFrom + 1), 0)}
-                  </span>
                 </div>
               )}
             </div>
