@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { PROJECTS, STATIONS, StationId } from "@/data/mockData";
 import { SCAN_LOG } from "@/scan/scanData";
-import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
+import { FileBarChart2, Mail, Calendar as CalendarIcon, RefreshCw } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface StationStats {
   stationId: StationId;
@@ -94,7 +98,8 @@ export default function Reports() {
     [fromDate, toDate, tick],
   );
 
-  const rangeLabel = fromStr === toStr ? fromStr : `${fromStr} ← ${toStr}`;
+  const fmt = (iso: string) => format(new Date(iso), "dd/MM/yyyy");
+  const rangeLabel = fromStr === toStr ? fmt(fromStr) : `${fmt(fromStr)} ← ${fmt(toStr)}`;
 
   const buildEmailBody = () => {
     const lines: string[] = [];
@@ -157,24 +162,54 @@ export default function Reports() {
               className="h-8 px-3 text-xs rounded-md border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
             >30 יום</button>
           </div>
-          <Calendar className="w-4 h-4 text-muted-foreground" />
+          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
           <div className="flex items-center gap-1">
             <span className="text-xs text-muted-foreground">מ-</span>
-            <input
-              type="date"
-              value={fromStr}
-              max={toStr}
-              onChange={e => setFromStr(e.target.value)}
-              className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "h-10 inline-flex items-center gap-2 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition",
+                  )}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                  {fmt(fromStr)}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={new Date(fromStr)}
+                  onSelect={d => d && setFromStr(format(d, "yyyy-MM-dd"))}
+                  disabled={d => d > new Date(toStr)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
             <span className="text-xs text-muted-foreground">עד</span>
-            <input
-              type="date"
-              value={toStr}
-              min={fromStr}
-              onChange={e => setToStr(e.target.value)}
-              className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "h-10 inline-flex items-center gap-2 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition",
+                  )}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                  {fmt(toStr)}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={new Date(toStr)}
+                  onSelect={d => d && setToStr(format(d, "yyyy-MM-dd"))}
+                  disabled={d => d < new Date(fromStr)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
           <button
             onClick={() => setTick(t => t + 1)}
