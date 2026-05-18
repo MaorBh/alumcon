@@ -22,15 +22,12 @@ function isSameDay(iso: string, date: Date) {
 
 /**
  * Compute stats from the live SCAN_LOG (real scans) for a single project.
- * - inStation: items currently sitting at this station (from item state, updated by scans)
  * - completedToday: count of station_pass scans at this station today
  * - rejectedToday: count of station_reject + qc_reject scans at this station today
  * - avgMinutes: avg time between the previous scan on the same item and the
  *   scan that landed it at this station (today)
  */
 function computeStationStats(projectId: string, date: Date): StationStats[] {
-  const items = PROJECT_ITEMS[projectId] || [];
-
   // Index project scans chronologically by item
   const projectScans = SCAN_LOG
     .filter(s => s.projectId === projectId)
@@ -44,10 +41,6 @@ function computeStationStats(projectId: string, date: Date): StationStats[] {
   }
 
   return STATIONS.map(s => {
-    const inStation = items.filter(
-      i => i.currentStation === s.id && i.status === "in_progress",
-    ).length;
-
     let completedToday = 0;
     let rejectedToday = 0;
     const durations: number[] = [];
@@ -77,7 +70,6 @@ function computeStationStats(projectId: string, date: Date): StationStats[] {
     return {
       stationId: s.id,
       stationName: s.name,
-      inStation,
       completedToday,
       rejectedToday,
       avgMinutes,
