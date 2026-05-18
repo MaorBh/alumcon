@@ -4,7 +4,7 @@ import { STATIONS, ItemStatus, ProjectItem, updateItemStatus, updateItemQc, QcSt
 import StatusBadge from "@/components/StatusBadge";
 import ItemPhotosDialog from "@/components/ItemPhotosDialog";
 import { SCAN_LOG } from "@/scan/scanData";
-import { Search, ImageIcon } from "lucide-react";
+import { Search, ImageIcon, RotateCcw } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 
 const qcLabel: Record<QcStatus, string> = {
