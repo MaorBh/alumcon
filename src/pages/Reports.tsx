@@ -223,7 +223,7 @@ export default function Reports() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/20">
-                  {["תחנה", "פעיל בתחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
+                  {["תחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
                     <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                       {h}
                     </th>
@@ -234,7 +234,6 @@ export default function Reports() {
                 {r.stations.map(s => (
                   <tr key={s.stationId} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{s.stationName}</td>
-                    <td className="px-4 py-3 text-xs font-inter tabular-nums">{s.inStation}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-completed">{s.completedToday}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-rejected">{s.rejectedToday}</td>
                     <td className="px-4 py-3 text-xs font-inter tabular-nums text-muted-foreground">{formatMinutes(s.avgMinutes)}</td>
