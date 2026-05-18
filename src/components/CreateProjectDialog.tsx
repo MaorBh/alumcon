@@ -312,8 +312,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 4: Summary */}
-        {step === 4 && (
+        {/* Step 2: Summary */}
+        {step === 2 && (
           <div className="space-y-4">
             <div className="glass-card p-4 space-y-3">
               <div className="flex justify-between">
@@ -327,32 +327,13 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">חזיתות</span>
-                <span className="text-sm">{form.sides.join(", ")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">קומות</span>
-                <span className="text-sm font-inter">{form.floorFrom}–{form.floorTo} ({form.floorTo - form.floorFrom + 1} קומות)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">תחנות</span>
-                <span className="text-sm">{form.enabledStations.length} מתוך {STATIONS.length}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">קובץ</span>
                 <span className="text-sm">{form.file ? form.file.name : "לא הועלה"}</span>
               </div>
-              {form.parsedItems.length > 0 ? (
+              {form.parsedItems.length > 0 && (
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">פריטים מהקובץ</span>
                   <span className="text-sm font-inter font-bold text-primary">{form.parsedItems.length}</span>
-                </div>
-              ) : (
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">סה״כ פריטים (משוער)</span>
-                  <span className="text-sm font-inter font-bold text-primary">
-                    {form.sides.reduce((sum, side) => sum + (form.unitsPerFloor[side] || 1) * (form.floorTo - form.floorFrom + 1), 0)}
-                  </span>
                 </div>
               )}
             </div>
