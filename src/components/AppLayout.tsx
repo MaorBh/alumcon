@@ -12,6 +12,9 @@ import {
   LogOut,
   FileBarChart2,
 } from "lucide-react";
+// items page removed from main nav
+const _unused = {
+} from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/auth/AuthContext";
 import { ROLE_LABELS } from "@/auth/users";
