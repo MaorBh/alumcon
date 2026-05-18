@@ -1,94 +1,61 @@
 import { useEffect, useMemo, useState } from "react";
 import { PROJECTS, STATIONS, StationId } from "@/data/mockData";
-import { SCAN_LOG, ScanRecord } from "@/scan/scanData";
+import { SCAN_LOG } from "@/scan/scanData";
 import { FileBarChart2, Mail, Calendar, RefreshCw } from "lucide-react";
 
 interface StationStats {
   stationId: StationId;
   stationName: string;
-  completedToday: number;
-  rejectedToday: number;
-  avgMinutes: number | null;
+  completed: number;
+  rejected: number;
 }
 
-function isSameDay(iso: string, date: Date) {
-  const d = new Date(iso);
-  return (
-    d.getFullYear() === date.getFullYear() &&
-    d.getMonth() === date.getMonth() &&
-    d.getDate() === date.getDate()
-  );
+function toDateOnly(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
-/**
- * Compute stats from the live SCAN_LOG (real scans) for a single project.
- * - completedToday: count of station_pass scans at this station today
- * - rejectedToday: count of station_reject + qc_reject scans at this station today
- * - avgMinutes: avg time between the previous scan on the same item and the
- *   scan that landed it at this station (today)
- */
-function computeStationStats(projectId: string, date: Date): StationStats[] {
-  // Index project scans chronologically by item
-  const projectScans = SCAN_LOG
-    .filter(s => s.projectId === projectId)
-    .slice()
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+function isWithinRange(iso: string, from: Date, to: Date) {
+  const t = new Date(iso).getTime();
+  return t >= from.getTime() && t <= to.getTime();
+}
 
-  const scansByItem = new Map<string, ScanRecord[]>();
-  for (const s of projectScans) {
-    if (!scansByItem.has(s.itemId)) scansByItem.set(s.itemId, []);
-    scansByItem.get(s.itemId)!.push(s);
-  }
-
+function computeStationStats(projectId: string, from: Date, to: Date): StationStats[] {
   return STATIONS.map(s => {
-    let completedToday = 0;
-    let rejectedToday = 0;
-    const durations: number[] = [];
+    let completed = 0;
+    let rejected = 0;
 
-    scansByItem.forEach(itemScans => {
-      itemScans.forEach((scan, idx) => {
-        if (!isSameDay(scan.timestamp, date)) return;
-        if (scan.stationId !== s.id) return;
+    SCAN_LOG.forEach(scan => {
+      if (scan.projectId !== projectId) return;
+      if (scan.stationId !== s.id) return;
+      if (!isWithinRange(scan.timestamp, from, to)) return;
 
-        if (scan.action === "station_pass") {
-          completedToday++;
-          const prev = itemScans[idx - 1];
-          if (prev) {
-            const ms = new Date(scan.timestamp).getTime() - new Date(prev.timestamp).getTime();
-            if (ms > 0 && ms < 1000 * 60 * 60 * 48) durations.push(ms / 60000);
-          }
-        } else if (scan.action === "station_reject" || scan.action === "qc_reject") {
-          rejectedToday++;
-        }
-      });
+      if (scan.action === "station_pass") completed++;
+      else if (scan.action === "station_reject" || scan.action === "qc_reject") rejected++;
     });
-
-    const avgMinutes = durations.length
-      ? durations.reduce((a, b) => a + b, 0) / durations.length
-      : null;
 
     return {
       stationId: s.id,
       stationName: s.name,
-      completedToday,
-      rejectedToday,
-      avgMinutes,
+      completed,
+      rejected,
     };
   });
 }
 
-function formatMinutes(m: number | null) {
-  if (m == null) return "—";
-  if (m < 60) return `${m.toFixed(0)} ד׳`;
-  const h = Math.floor(m / 60);
-  const min = Math.round(m % 60);
-  return `${h}:${String(min).padStart(2, "0")} ש׳`;
-}
-
 export default function Reports() {
-  const [dateStr, setDateStr] = useState(() => new Date().toISOString().split("T")[0]);
-  const date = useMemo(() => new Date(dateStr), [dateStr]);
+  const today = new Date().toISOString().split("T")[0];
+  const [fromStr, setFromStr] = useState(today);
+  const [toStr, setToStr] = useState(today);
   const [tick, setTick] = useState(0);
+
+  const fromDate = useMemo(() => toDateOnly(new Date(fromStr)), [fromStr]);
+  const toDate = useMemo(() => {
+    const d = toDateOnly(new Date(toStr));
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [toStr]);
 
   // Live refresh — SCAN_LOG mutates outside React so poll its length
   useEffect(() => {
@@ -99,18 +66,18 @@ export default function Reports() {
   const projectReports = useMemo(
     () =>
       PROJECTS.map(p => {
-        const stations = computeStationStats(p.id, date);
+        const stations = computeStationStats(p.id, fromDate, toDate);
         const totals = stations.reduce(
           (acc, s) => ({
-            completed: acc.completed + s.completedToday,
-            rejected: acc.rejected + s.rejectedToday,
+            completed: acc.completed + s.completed,
+            rejected: acc.rejected + s.rejected,
           }),
           { completed: 0, rejected: 0 },
         );
         return { project: p, stations, totals };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [date, tick, SCAN_LOG.length],
+    [fromDate, toDate, tick, SCAN_LOG.length],
   );
 
   const grandTotals = projectReports.reduce(
@@ -121,25 +88,24 @@ export default function Reports() {
     { completed: 0, rejected: 0 },
   );
 
-  const totalScansToday = useMemo(
-    () => SCAN_LOG.filter(s => isSameDay(s.timestamp, date)).length,
-    [date, tick],
+  const totalScansInRange = useMemo(
+    () => SCAN_LOG.filter(s => isWithinRange(s.timestamp, fromDate, toDate)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fromDate, toDate, tick],
   );
+
+  const rangeLabel = fromStr === toStr ? fromStr : `${fromStr} ← ${toStr}`;
 
   const buildEmailBody = () => {
     const lines: string[] = [];
-    lines.push(`דוח יומי - ${dateStr}`);
+    lines.push(`דוח ייצור - ${rangeLabel}`);
     lines.push("");
-    lines.push(
-      `הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
-    );
+    lines.push(`הושלמו: ${grandTotals.completed} | פסולים: ${grandTotals.rejected}`);
     lines.push("");
     projectReports.forEach(r => {
       lines.push(`== ${r.project.name} ==`);
       r.stations.forEach(s => {
-        lines.push(
-          `${s.stationName}: הושלמו ${s.completedToday} | פסולים ${s.rejectedToday} | זמן ממוצע ${formatMinutes(s.avgMinutes)}`,
-        );
+        lines.push(`${s.stationName}: הושלמו ${s.completed} | פסולים ${s.rejected}`);
       });
       lines.push("");
     });
@@ -147,9 +113,17 @@ export default function Reports() {
   };
 
   const handleEmail = () => {
-    const subject = encodeURIComponent(`דוח ייצור יומי - ${dateStr}`);
+    const subject = encodeURIComponent(`דוח ייצור - ${rangeLabel}`);
     const body = encodeURIComponent(buildEmailBody());
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const setQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days + 1);
+    setFromStr(start.toISOString().split("T")[0]);
+    setToStr(end.toISOString().split("T")[0]);
   };
 
   return (
@@ -161,21 +135,47 @@ export default function Reports() {
             <FileBarChart2 className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-foreground">דוח ייצור יומי</h2>
+            <h2 className="text-lg font-bold text-foreground">דוח ייצור</h2>
             <p className="text-xs text-muted-foreground">
-              מבוסס על {totalScansToday.toLocaleString()} סריקות שבוצעו בתאריך הנבחר
+              מבוסס על {totalScansInRange.toLocaleString()} סריקות בטווח הנבחר
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mr-auto">
+        <div className="flex items-center gap-2 mr-auto flex-wrap">
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              onClick={() => { const d = new Date().toISOString().split("T")[0]; setFromStr(d); setToStr(d); }}
+              className="h-8 px-3 text-xs rounded-md border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            >היום</button>
+            <button
+              onClick={() => setQuickRange(7)}
+              className="h-8 px-3 text-xs rounded-md border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            >7 ימים</button>
+            <button
+              onClick={() => setQuickRange(30)}
+              className="h-8 px-3 text-xs rounded-md border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            >30 יום</button>
+          </div>
           <Calendar className="w-4 h-4 text-muted-foreground" />
-          <input
-            type="date"
-            value={dateStr}
-            onChange={e => setDateStr(e.target.value)}
-            className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
-          />
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">מ-</span>
+            <input
+              type="date"
+              value={fromStr}
+              max={toStr}
+              onChange={e => setFromStr(e.target.value)}
+              className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+            />
+            <span className="text-xs text-muted-foreground">עד</span>
+            <input
+              type="date"
+              value={toStr}
+              min={fromStr}
+              onChange={e => setToStr(e.target.value)}
+              className="h-10 bg-background/60 border border-border rounded-lg px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition"
+            />
+          </div>
           <button
             onClick={() => setTick(t => t + 1)}
             className="h-10 w-10 inline-flex items-center justify-center rounded-lg border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition"
@@ -197,11 +197,11 @@ export default function Reports() {
       {/* Grand totals */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="surface-card p-5">
-          <div className="text-xs text-muted-foreground mb-1">בוצעו היום</div>
+          <div className="text-xs text-muted-foreground mb-1">בוצעו בטווח</div>
           <div className="text-3xl font-bold font-inter tabular-nums text-status-completed">{grandTotals.completed}</div>
         </div>
         <div className="surface-card p-5">
-          <div className="text-xs text-muted-foreground mb-1">פסולים היום</div>
+          <div className="text-xs text-muted-foreground mb-1">פסולים בטווח</div>
           <div className="text-3xl font-bold font-inter tabular-nums text-status-rejected">{grandTotals.rejected}</div>
         </div>
       </div>
@@ -223,7 +223,7 @@ export default function Reports() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/20">
-                  {["תחנה", "הושלמו היום", "פסולים היום", "זמן ממוצע ליחידה"].map(h => (
+                  {["תחנה", "הושלמו", "פסולים"].map(h => (
                     <th key={h} className="text-right px-4 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                       {h}
                     </th>
@@ -234,9 +234,8 @@ export default function Reports() {
                 {r.stations.map(s => (
                   <tr key={s.stationId} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{s.stationName}</td>
-                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-completed">{s.completedToday}</td>
-                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-rejected">{s.rejectedToday}</td>
-                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-muted-foreground">{formatMinutes(s.avgMinutes)}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-completed">{s.completed}</td>
+                    <td className="px-4 py-3 text-xs font-inter tabular-nums text-status-rejected">{s.rejected}</td>
                   </tr>
                 ))}
               </tbody>

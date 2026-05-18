@@ -232,7 +232,6 @@ export default function ReportSettingsCard() {
               { key: "includeProjectBreakdown", label: "פירוט לפי פרויקט" },
               { key: "includeStationBreakdown", label: "פירוט לפי תחנה" },
               { key: "includeRejects", label: "כמות פסולים" },
-              { key: "includeAvgTime", label: "זמן ממוצע ליחידה" },
             ].map(opt => {
               const k = opt.key as keyof ReportSettings;
               const checked = settings[k] as boolean;
