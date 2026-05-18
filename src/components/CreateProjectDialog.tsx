@@ -163,8 +163,6 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
   const canNext = () => {
     if (step === 0) return form.name.trim().length > 0;
-    if (step === 1) return form.sides.length > 0 && form.floorFrom <= form.floorTo;
-    if (step === 2) return form.enabledStations.length > 0;
     return true;
   };
 
