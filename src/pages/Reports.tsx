@@ -131,7 +131,7 @@ export default function Reports() {
     lines.push(`דוח יומי - ${dateStr}`);
     lines.push("");
     lines.push(
-      `סה"כ בתחנות: ${grandTotals.inStation} | הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
+      `הושלמו היום: ${grandTotals.completed} | פסולים היום: ${grandTotals.rejected}`,
     );
     lines.push("");
     projectReports.forEach(r => {
