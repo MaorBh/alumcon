@@ -1,37 +1,36 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import JsBarcode from "jsbarcode";
-import { Upload, FileSpreadsheet, Printer, Save, Check, AlertTriangle, Trash2, RotateCcw } from "lucide-react";
+import {
+  Upload, FileSpreadsheet, Printer, ChevronRight, ChevronLeft,
+  Rows3, Columns3, MousePointerClick, CheckSquare, ArrowRight, ArrowLeft, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PROJECT_ITEMS, ProjectItem } from "@/data/mockData";
+import { ProjectItem } from "@/data/mockData";
 import { toast } from "sonner";
 
-/** Single parsed row from the uploaded label-data Excel. */
+/* ============================================================
+ * Excel parsing (optional enrichment: weight, code, date)
+ * ============================================================ */
+
 interface LabelRow {
-  rowIndex: number;
   ifcGuid?: string;
   side?: string;
   floor?: number;
   unit?: number;
   type?: string;
-  unitCode?: string;   // e.g. "U-125x360-V-B"
+  unitCode?: string;
   weight?: string;
-  barcode?: string;    // from file (optional)
-  date?: string;       // free-text date for label
-  // Resolution
-  matchedItemId?: string | null; // null = no match; undefined = not yet resolved
+  barcode?: string;
+  date?: string;
 }
 
-function s(v: unknown): string {
-  return String(v ?? "").trim();
-}
+function s(v: unknown): string { return String(v ?? "").trim(); }
 
-/** Convert Excel serial date (or string) to DD/MM/YYYY. */
 function toDateStr(v: unknown): string {
   if (v == null || v === "") return "";
   if (typeof v === "number" && v > 20000 && v < 80000) {
-    // Excel serial date — 1900-based with the well-known leap bug.
     const ms = Math.round((v - 25569) * 86400 * 1000);
     const d = new Date(ms);
     if (!isNaN(d.getTime())) {
@@ -49,33 +48,25 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: "array" });
-        // Prefer a sheet whose name contains "הדפס" / "ברקוד"
-        const sheetName =
-          wb.SheetNames.find(n => /הדפס|ברקוד/.test(n)) || wb.SheetNames[0];
+        const sheetName = wb.SheetNames.find(n => /הדפס|ברקוד/.test(n)) || wb.SheetNames[0];
         const sheet = wb.Sheets[sheetName];
         const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
         if (raw.length < 2) return resolve([]);
 
-        // Find header row = first with ≥3 non-empty cells in first 10 rows.
         let headerIdx = -1;
         for (let r = 0; r < Math.min(raw.length, 10); r++) {
           if (raw[r].filter(c => c !== "" && c != null).length >= 3) { headerIdx = r; break; }
         }
-        // If row 0 looks like data (no Hebrew header words), treat as headerless.
         const headers = headerIdx >= 0 ? raw[headerIdx].map(h => s(h).toLowerCase()) : [];
         const dataRows = raw.slice(headerIdx + 1).filter(r => r && r.some(c => c !== "" && c != null));
         if (dataRows.length === 0) return resolve([]);
 
         const width = Math.max(...dataRows.map(r => r.length));
-
-        // Find all column indices for a given header keyword.
         const colsByName = (...keys: string[]): number[] => {
           const out: number[] = [];
           headers.forEach((h, i) => { if (keys.some(k => h === k.toLowerCase())) out.push(i); });
           return out;
         };
-
-        // Pick the column whose data rows are mostly numeric (for floor/unit when "מיקום" appears twice).
         const pickNumericCol = (candidates: number[]): number => {
           if (candidates.length <= 1) return candidates[0] ?? -1;
           let best = candidates[0], bestScore = -1;
@@ -89,8 +80,6 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
           }
           return best;
         };
-
-        // Auto-detect side column by content (e.g. "N-W", "S-W", "N-S").
         const detectSideCol = (): number => {
           for (let c = 0; c < width; c++) {
             let hits = 0, total = 0;
@@ -107,9 +96,7 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
 
         const iIfc    = colsByName("ifcguid", "ifc guid", "globalid", "guid")[0] ?? -1;
         const iFloor  = pickNumericCol(colsByName("floor", "קומה", "קו'", "קו"));
-        const unitCols = colsByName("unit", "מיקום", "יחידה");
-        // If two "מיקום" columns: the numeric one is unit, the textual one is the location label.
-        const iUnit   = pickNumericCol(unitCols);
+        const iUnit   = pickNumericCol(colsByName("unit", "מיקום", "יחידה"));
         const iType   = colsByName("type", "סוג", "מק\"ט", 'מק"ט', "catalog")[0] ?? -1;
         const iCode   = colsByName("code", "unitcode", "unit_name", "קוד", "תאור", "description")[0] ?? -1;
         const iWeight = colsByName("weight", "משקל")[0] ?? -1;
@@ -119,13 +106,12 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
         if (iSide < 0) iSide = detectSideCol();
 
         const out: LabelRow[] = [];
-        dataRows.forEach((row, idx) => {
+        dataRows.forEach(row => {
           const get = (i: number) => (i >= 0 ? s(row[i]) : "");
           const floorStr = get(iFloor);
           const unitStr  = get(iUnit);
           const barRaw = get(iBar).replace(/^\*|\*$/g, "");
           out.push({
-            rowIndex: idx + 1,
             ifcGuid:  get(iIfc) || undefined,
             side:     get(iSide) || undefined,
             floor:    floorStr ? parseInt(floorStr.replace(/[^0-9-]/g, ""), 10) || undefined : undefined,
@@ -138,39 +124,33 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
           });
         });
         resolve(out);
-      } catch (err) {
-        reject(err);
-      }
+      } catch (err) { reject(err); }
     };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
 }
 
-/** Build a normalized side key for soft matching ("S-North" ≈ "N-S" ≈ "N"). */
-function sideKey(s?: string): string {
-  if (!s) return "";
-  return s.toUpperCase().replace(/[^NSEW]/g, "");
+function sideKey(v?: string): string {
+  if (!v) return "";
+  return v.toUpperCase().replace(/[^NSEW]/g, "");
 }
 
-function matchItem(row: LabelRow, items: ProjectItem[]): ProjectItem | null {
-  if (row.ifcGuid) {
-    const byIfc = items.find(i => i.ifcGuid && i.ifcGuid.toLowerCase() === row.ifcGuid!.toLowerCase());
+/** Lookup a LabelRow that matches a given ProjectItem. */
+function findRowForItem(item: ProjectItem, rows: LabelRow[]): LabelRow | undefined {
+  if (rows.length === 0) return undefined;
+  if (item.ifcGuid) {
+    const byIfc = rows.find(r => r.ifcGuid && r.ifcGuid.toLowerCase() === item.ifcGuid!.toLowerCase());
     if (byIfc) return byIfc;
   }
-  if (row.floor != null && row.unit != null) {
-    const candidates = items.filter(i => i.floor === row.floor && i.unit === row.unit);
-    if (candidates.length === 1) return candidates[0];
-    if (row.side && candidates.length > 0) {
-      const k = sideKey(row.side);
-      const exact = candidates.find(c => sideKey(c.side) === k);
-      if (exact) return exact;
-      const partial = candidates.find(c => sideKey(c.side).includes(k) || k.includes(sideKey(c.side)));
-      if (partial) return partial;
-    }
-    if (candidates.length > 0) return candidates[0];
+  const candidates = rows.filter(r => r.floor === item.floor && r.unit === item.unit);
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) {
+    const k = sideKey(item.side);
+    const exact = candidates.find(c => sideKey(c.side) === k);
+    if (exact) return exact;
   }
-  return null;
+  return candidates[0];
 }
 
 function generateBarcode(projectId: string, item: ProjectItem): string {
@@ -181,93 +161,83 @@ function generateBarcode(projectId: string, item: ProjectItem): string {
   return `${prefix}-${k}-${f}-${u}`;
 }
 
-function buildPrintHtml(rows: { row: LabelRow; item: ProjectItem; barcode: string }[], projectName: string): string {
-  const labels = rows.map(({ row, item, barcode }) => {
-    const sideLabel = row.side || item.side || "";
-    const floor = row.floor ?? item.floor;
-    const unit = row.unit ?? item.unit;
-    const code = row.unitCode || "";
-    const type = row.type || item.type || "";
-    const date = row.date || new Date().toLocaleDateString("he-IL");
-    const weight = row.weight || "";
+/* ============================================================
+ * Label model
+ * ============================================================ */
 
-    return `
-      <div class="label">
-        ${weight ? `
-        <div class="weight-side">
-          <svg class="bar-vert"></svg>
-          <div class="weight-text">
-            <div class="wlabel">משקל</div>
-            <div class="wvalue">${weight}</div>
-            <div class="wunit">Kg</div>
-          </div>
-        </div>` : ""}
-        <div class="info-side ${weight ? "" : "full"}">
-          <div class="type">${type}</div>
-          <div class="side">${sideLabel}</div>
-          <div class="loc">קו' ${floor}, מיקום ${unit}</div>
-          ${code ? `<div class="code">${code}</div>` : ""}
-          <svg class="bar-horiz" data-barcode="${barcode}"></svg>
-          <div class="bartext">*${barcode}*</div>
-          <div class="date">${date}</div>
-        </div>
+interface LabelData {
+  item: ProjectItem;
+  barcode: string;
+  type: string;
+  side: string;
+  floor: number;
+  unit: number;
+  code: string;
+  weight: string;
+  date: string;
+}
+
+function buildLabel(item: ProjectItem, projectId: string, rows: LabelRow[]): LabelData {
+  const row = findRowForItem(item, rows);
+  const barcode =
+    row?.barcode ||
+    item.barcode ||
+    generateBarcode(projectId, item);
+  return {
+    item,
+    barcode,
+    type: row?.type || item.type || "",
+    side: row?.side || item.side || "",
+    floor: row?.floor ?? item.floor,
+    unit: row?.unit ?? item.unit,
+    code: row?.unitCode || "",
+    weight: row?.weight || "",
+    date: row?.date || new Date().toLocaleDateString("he-IL"),
+  };
+}
+
+/* ============================================================
+ * Print HTML
+ * ============================================================ */
+
+function labelInnerHtml(l: LabelData): string {
+  return `
+    ${l.weight ? `
+    <div class="weight-side">
+      <svg class="bar-vert"></svg>
+      <div class="weight-text">
+        <div class="wlabel">משקל</div>
+        <div class="wvalue">${l.weight}</div>
+        <div class="wunit">Kg</div>
       </div>
-    `;
-  }).join("");
+    </div>` : ""}
+    <div class="info-side ${l.weight ? "" : "full"}">
+      <div class="type">${l.type}</div>
+      <div class="side">${l.side}</div>
+      <div class="loc">קו' ${l.floor}, מיקום ${l.unit}</div>
+      ${l.code ? `<div class="code">${l.code}</div>` : ""}
+      <svg class="bar-horiz" data-barcode="${l.barcode}"></svg>
+      <div class="bartext">*${l.barcode}*</div>
+      <div class="date">${l.date}</div>
+    </div>
+  `;
+}
 
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head>
-<meta charset="UTF-8">
-<title>הדפסת מדבקות - ${projectName}</title>
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-<style>
+const LABEL_CSS = `
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 12px;
-    background: #f3f3f3;
-    font-family: "Heebo", "Arial Hebrew", Arial, sans-serif;
-    color: #000;
-  }
-  .toolbar {
-    position: sticky; top: 0; z-index: 10;
-    background: #fff; padding: 10px; border-bottom: 1px solid #ccc;
-    display: flex; justify-content: space-between; align-items: center;
-    margin: -12px -12px 16px;
-  }
-  .toolbar button {
-    background: #111; color: #fff; border: 0; padding: 8px 16px;
-    border-radius: 6px; cursor: pointer; font-size: 14px;
-  }
-  .label {
-    display: flex;
-    width: 105mm;
-    height: 40mm;
-    background: #fff;
-    border: 1px solid #000;
-    margin: 0 auto 6mm;
-    overflow: hidden;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .weight-side {
-    width: 38%;
-    border-left: 1px solid #000;
-    display: flex;
-    align-items: center;
-    padding: 3mm;
-    gap: 2mm;
-  }
+  body { margin: 0; padding: 12px; background: #f3f3f3; font-family: "Heebo", "Arial Hebrew", Arial, sans-serif; color: #000; }
+  .toolbar { position: sticky; top: 0; z-index: 10; background: #fff; padding: 10px; border-bottom: 1px solid #ccc;
+    display: flex; justify-content: space-between; align-items: center; margin: -12px -12px 16px; }
+  .toolbar button { background: #111; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .label { display: flex; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
+    margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
+  .weight-side { width: 38%; border-left: 1px solid #000; display: flex; align-items: center; padding: 3mm; gap: 2mm; }
   .bar-vert { width: 8mm; height: 100%; }
   .weight-text { flex: 1; text-align: center; line-height: 1; }
   .wlabel { font-size: 11pt; font-weight: 600; }
   .wvalue { font-size: 28pt; font-weight: 800; margin: 1mm 0; }
   .wunit  { font-size: 12pt; font-weight: 700; }
-  .info-side {
-    flex: 1; padding: 2.5mm 3mm;
-    display: flex; flex-direction: column; justify-content: space-between;
-  }
+  .info-side { flex: 1; padding: 2.5mm 3mm; display: flex; flex-direction: column; justify-content: space-between; }
   .info-side.full { width: 100%; }
   .type { font-size: 14pt; font-weight: 800; line-height: 1; }
   .side { font-size: 12pt; font-weight: 700; line-height: 1; margin-top: 0.5mm; }
@@ -276,76 +246,128 @@ function buildPrintHtml(rows: { row: LabelRow; item: ProjectItem; barcode: strin
   .bar-horiz { width: 100%; height: 11mm; margin-top: 1mm; }
   .bartext { font-family: monospace; font-size: 8pt; text-align: center; letter-spacing: 0.5px; }
   .date { font-size: 9pt; font-weight: 600; text-align: left; direction: ltr; }
-  @media print {
-    body { background: #fff; padding: 0; }
-    .toolbar { display: none; }
-    .label { border-color: #000; margin: 0 auto 4mm; }
-  }
-</style>
+  @media print { body { background: #fff; padding: 0; } .toolbar { display: none; } .label { border-color: #000; margin: 0 auto 4mm; } }
+`;
+
+function buildPrintHtml(labels: LabelData[], projectName: string): string {
+  const labelsHtml = labels.map(l => `<div class="label">${labelInnerHtml(l)}</div>`).join("");
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>הדפסת מדבקות - ${projectName}</title>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>${LABEL_CSS}</style>
 </head>
 <body>
   <div class="toolbar">
-    <strong>הדפסת מדבקות – ${projectName} (${rows.length})</strong>
+    <strong>הדפסת מדבקות – ${projectName} (${labels.length})</strong>
     <button onclick="window.print()">🖨️ הדפס</button>
   </div>
-  ${labels}
+  ${labelsHtml}
   <script>
     document.querySelectorAll('svg.bar-horiz').forEach(function(svg){
-      try {
-        JsBarcode(svg, svg.getAttribute('data-barcode'), {
-          format: "CODE128", displayValue: false,
-          margin: 0, height: 40, width: 1.6
-        });
-      } catch (e) { console.error(e); }
+      try { JsBarcode(svg, svg.getAttribute('data-barcode'), { format: "CODE128", displayValue: false, margin: 0, height: 40, width: 1.6 }); } catch (e) {}
     });
     document.querySelectorAll('svg.bar-vert').forEach(function(svg, i){
-      try {
-        JsBarcode(svg, "W" + (i+1), {
-          format: "CODE128", displayValue: false,
-          margin: 0, height: 30, width: 1.4
-        });
-        svg.style.transform = 'rotate(90deg)';
-      } catch (e) {}
+      try { JsBarcode(svg, "W" + (i+1), { format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.4 }); svg.style.transform = 'rotate(90deg)'; } catch (e) {}
     });
   </script>
 </body>
 </html>`;
 }
 
-export default function BarcodesTab({ items: itemsProp, projectName }: { items: ProjectItem[]; projectName: string }) {
-  const { id: projectId } = useParams<{ id: string }>();
+/* ============================================================
+ * Live preview (single label in component)
+ * ============================================================ */
+
+function LabelPreview({ label }: { label: LabelData }) {
+  const horizRef = useRef<SVGSVGElement>(null);
+  const vertRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (horizRef.current) {
+      try {
+        JsBarcode(horizRef.current, label.barcode, {
+          format: "CODE128", displayValue: false, margin: 0, height: 40, width: 1.6,
+        });
+      } catch {}
+    }
+    if (vertRef.current && label.weight) {
+      try {
+        JsBarcode(vertRef.current, "W-" + label.barcode, {
+          format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.4,
+        });
+      } catch {}
+    }
+  }, [label]);
+
+  return (
+    <div
+      dir="rtl"
+      className="bg-white text-black border-2 border-black shadow-xl"
+      style={{ width: "105mm", height: "40mm", display: "flex", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
+    >
+      {label.weight && (
+        <div style={{ width: "38%", borderLeft: "1px solid #000", display: "flex", alignItems: "center", padding: "3mm", gap: "2mm" }}>
+          <svg ref={vertRef} style={{ width: "8mm", height: "100%", transform: "rotate(90deg)" }} />
+          <div style={{ flex: 1, textAlign: "center", lineHeight: 1 }}>
+            <div style={{ fontSize: "11pt", fontWeight: 600 }}>משקל</div>
+            <div style={{ fontSize: "28pt", fontWeight: 800, margin: "1mm 0" }}>{label.weight}</div>
+            <div style={{ fontSize: "12pt", fontWeight: 700 }}>Kg</div>
+          </div>
+        </div>
+      )}
+      <div style={{ flex: 1, padding: "2.5mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.type}</div>
+        <div style={{ fontSize: "12pt", fontWeight: 700, lineHeight: 1, marginTop: "0.5mm" }}>{label.side}</div>
+        <div style={{ fontSize: "10pt", fontWeight: 600, marginTop: "1mm" }}>קו' {label.floor}, מיקום {label.unit}</div>
+        {label.code && <div style={{ fontSize: "10pt", fontWeight: 600 }}>{label.code}</div>}
+        <svg ref={horizRef} style={{ width: "100%", height: "11mm", marginTop: "1mm" }} />
+        <div style={{ fontFamily: "monospace", fontSize: "8pt", textAlign: "center", letterSpacing: "0.5px" }}>*{label.barcode}*</div>
+        <div style={{ fontSize: "9pt", fontWeight: 600, textAlign: "left", direction: "ltr" }}>{label.date}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+ * Main component
+ * ============================================================ */
+
+type SelectionMode = "floor" | "strip" | "single" | "multi";
+
+export default function BarcodesTab({ items, projectName }: { items: ProjectItem[]; projectName: string }) {
+  const { id: projectId = "" } = useParams<{ id: string }>();
+
+  // Optional Excel enrichment
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<LabelRow[]>([]);
-  const [, force] = useState(0);
   const [parsing, setParsing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const items = itemsProp;
+  // Wizard state
+  const [step, setStep] = useState<1 | 2>(1);
+  const [side, setSide] = useState<string>("");
+  const [mode, setMode] = useState<SelectionMode>("floor");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [previewIdx, setPreviewIdx] = useState(0);
 
-  /** Resolved per-row: matched item id + which barcode value will be used. */
-  const resolved = useMemo(() => {
-    return rows.map(r => {
-      const matched =
-        r.matchedItemId === null
-          ? null
-          : r.matchedItemId
-          ? items.find(i => i.id === r.matchedItemId) || null
-          : matchItem(r, items);
-      const item = matched;
-      let barcode = "";
-      let source: "excel" | "existing" | "generated" | "" = "";
-      if (item) {
-        if (r.barcode) { barcode = r.barcode; source = "excel"; }
-        else if (item.barcode && !item.barcode.startsWith("ALM-")) { barcode = item.barcode; source = "existing"; }
-        else if (item.barcode) { barcode = item.barcode; source = "existing"; }
-        else if (projectId) { barcode = generateBarcode(projectId, item); source = "generated"; }
-      }
-      return { row: r, item, barcode, source };
+  const sides = useMemo(() => Array.from(new Set(items.map(i => i.side))).sort(), [items]);
+
+  const sideItems = useMemo(() => items.filter(i => i.side === side), [items, side]);
+  const floors = useMemo(() => Array.from(new Set(sideItems.map(i => i.floor))).sort((a, b) => b - a), [sideItems]);
+  const units = useMemo(() => Array.from(new Set(sideItems.map(i => i.unit))).sort((a, b) => a - b), [sideItems]);
+
+  /** Build a {floor → {unit → ProjectItem}} grid for the selected side. */
+  const grid = useMemo(() => {
+    const m = new Map<number, Map<number, ProjectItem>>();
+    sideItems.forEach(it => {
+      if (!m.has(it.floor)) m.set(it.floor, new Map());
+      m.get(it.floor)!.set(it.unit, it);
     });
-  }, [rows, items, projectId]);
-
-  const matchedCount = resolved.filter(r => r.item).length;
-  const unmatchedCount = resolved.length - matchedCount;
+    return m;
+  }, [sideItems]);
 
   const handleFile = async (f: File | null) => {
     setFile(f);
@@ -355,8 +377,7 @@ export default function BarcodesTab({ items: itemsProp, projectName }: { items: 
     try {
       const parsed = await parseLabelExcel(f);
       setRows(parsed);
-      if (parsed.length === 0) toast.warning("לא נמצאו שורות בקובץ");
-      else toast.success(`נטענו ${parsed.length} שורות מהקובץ`);
+      toast.success(`נטענו ${parsed.length} שורות נתונים מהקובץ`);
     } catch {
       toast.error("שגיאה בקריאת הקובץ");
     } finally {
@@ -364,203 +385,336 @@ export default function BarcodesTab({ items: itemsProp, projectName }: { items: 
     }
   };
 
-  const setRowItem = (rowIdx: number, itemId: string | "") => {
-    setRows(prev => prev.map((r, i) =>
-      i === rowIdx ? { ...r, matchedItemId: itemId === "" ? null : itemId } : r
-    ));
+  const resetWizard = () => {
+    setStep(1);
+    setSide("");
+    setMode("floor");
+    setSelectedIds([]);
+    setPreviewIdx(0);
   };
 
-  const handleSave = () => {
-    if (!projectId) return;
-    let saved = 0;
-    resolved.forEach(({ item, barcode }) => {
-      if (item && barcode) {
-        item.barcode = barcode;
-        saved++;
-      }
-    });
-    force(k => k + 1);
-    toast.success(`עודכנו ברקודים עבור ${saved} פריטים`);
+  const toggleId = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
+
+  const selectFloor = (floor: number) => {
+    const ids = sideItems.filter(i => i.floor === floor).sort((a, b) => a.unit - b.unit).map(i => i.id);
+    setSelectedIds(ids);
+  };
+
+  const selectStrip = (unit: number) => {
+    // bottom → up: lowest floor first
+    const ids = sideItems.filter(i => i.unit === unit).sort((a, b) => a.floor - b.floor).map(i => i.id);
+    setSelectedIds(ids);
+  };
+
+  const onModeChange = (m: SelectionMode) => {
+    setMode(m);
+    setSelectedIds([]);
+  };
+
+  const selectedItems = useMemo(
+    () => selectedIds.map(id => items.find(i => i.id === id)).filter(Boolean) as ProjectItem[],
+    [selectedIds, items]
+  );
+
+  const labels = useMemo(
+    () => selectedItems.map(it => buildLabel(it, projectId, rows)),
+    [selectedItems, projectId, rows]
+  );
 
   const handlePrint = () => {
-    const toPrint = resolved.filter(r => r.item && r.barcode) as {
-      row: LabelRow; item: ProjectItem; barcode: string;
-    }[];
-    if (toPrint.length === 0) {
-      toast.error("אין פריטים מותאמים להדפסה");
-      return;
-    }
-    const html = buildPrintHtml(toPrint, projectName);
+    if (labels.length === 0) return;
+    const html = buildPrintHtml(labels, projectName);
     const w = window.open("", "_blank");
-    if (!w) {
-      toast.error("חלון ההדפסה נחסם — אפשר חלונות קופצים");
-      return;
-    }
+    if (!w) { toast.error("חלון ההדפסה נחסם — אפשר חלונות קופצים"); return; }
+    // Persist barcodes back to items
+    labels.forEach(l => { l.item.barcode = l.barcode; });
     w.document.write(html);
     w.document.close();
+    toast.success(`נשלחו ${labels.length} מדבקות להדפסה`);
   };
 
-  const handleReset = () => {
-    setFile(null);
-    setRows([]);
-    if (inputRef.current) inputRef.current.value = "";
-  };
+  /* -------------------- Render -------------------- */
 
   return (
-    <div className="space-y-4">
-      {/* Upload card */}
-      <div className="surface-card p-5 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-primary" />
-            <div>
-              <h3 className="font-bold">הפקת ברקודים ושליחה להדפסה</h3>
-              <p className="text-xs text-muted-foreground">
-                העלה קובץ Excel עם עמודות: <span className="font-mono">IfcGUID</span>, <span className="font-mono">Side/חזית</span>, <span className="font-mono">Floor/קומה</span>, <span className="font-mono">Unit/מיקום</span>, <span className="font-mono">Type</span>, <span className="font-mono">Code</span>, <span className="font-mono">Weight</span>, <span className="font-mono">Barcode</span> (אופציונלי)
-              </p>
+    <div className="space-y-4" dir="rtl">
+      {/* Excel upload (optional enrichment) */}
+      <div className="surface-card p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileSpreadsheet className="w-5 h-5 text-primary shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">נתוני מדבקה (אופציונלי)</div>
+            <div className="text-xs text-muted-foreground truncate">
+              {file ? (
+                <>קובץ: <span className="text-foreground font-medium">{file.name}</span>
+                {parsing ? " · מנתח..." : ` · ${rows.length} שורות`}</>
+              ) : "ניתן להעלות קובץ Excel עם משקל/קוד/תאריך להעשרת המדבקות"}
             </div>
-          </div>
-          <div className="flex gap-2">
-            <label className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-background/60 hover:bg-secondary hover:border-primary cursor-pointer text-sm font-medium transition">
-              <Upload className="w-4 h-4" />
-              {file ? "החלף קובץ" : "העלאת קובץ"}
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={e => handleFile(e.target.files?.[0] || null)}
-              />
-            </label>
-            {file && (
-              <button
-                onClick={handleReset}
-                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-border bg-background/60 text-xs hover:bg-secondary transition"
-                title="איפוס"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                איפוס
-              </button>
-            )}
           </div>
         </div>
-
-        {file && (
-          <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-border/40">
-            <div className="text-xs text-muted-foreground">
-              קובץ: <span className="font-medium text-foreground">{file.name}</span>
-              {" · "}
-              {parsing ? (
-                <span className="text-primary">מנתח...</span>
-              ) : rows.length > 0 ? (
-                <>
-                  <span className="text-status-completed">{matchedCount} שובצו</span>
-                  {unmatchedCount > 0 && <> · <span className="text-status-rejected">{unmatchedCount} ללא התאמה</span></>}
-                </>
-              ) : (
-                <span>אין שורות</span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleSave} disabled={matchedCount === 0}>
-                <Save className="w-4 h-4" />
-                שמור ברקודים לפריטים
-              </Button>
-              <Button onClick={handlePrint} disabled={matchedCount === 0}>
-                <Printer className="w-4 h-4" />
-                הפק לשליחה להדפסה
-              </Button>
-            </div>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-background/60 hover:bg-secondary cursor-pointer text-xs font-medium">
+            <Upload className="w-4 h-4" />
+            {file ? "החלף" : "העלאת קובץ"}
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+              onChange={e => handleFile(e.target.files?.[0] || null)} />
+          </label>
+          {file && (
+            <button onClick={() => { setFile(null); setRows([]); if (fileRef.current) fileRef.current.value = ""; }}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-background/60 hover:bg-secondary"
+              title="הסר קובץ">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Rows table */}
-      {rows.length > 0 && (
-        <div className="surface-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  {["#", "IFC GUID", "חזית", "קומה", "מיקום", "סוג", "קוד", "התאמה לפריט", "ברקוד", "מקור"].map(h => (
-                    <th key={h} className="text-right px-3 py-3 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {resolved.map(({ row, item, barcode, source }, idx) => {
-                  const isMatched = !!item;
-                  const isManual = row.matchedItemId !== undefined;
-                  return (
-                    <tr key={idx} className={`border-b border-border/40 last:border-0 transition-colors ${
-                      !isMatched ? "bg-status-rejected/5" : "hover:bg-muted/30"
+      {/* Stepper header */}
+      <div className="flex items-center gap-2 text-xs">
+        <StepPill n={1} label="בחירת היקף" active={step === 1} done={step > 1} />
+        <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+        <StepPill n={2} label="תצוגה מקדימה" active={step === 2} done={false} />
+      </div>
+
+      {step === 1 && (
+        <div className="surface-card p-5 space-y-5">
+          {/* 1. Side */}
+          <section>
+            <h3 className="font-bold text-sm mb-2">1. בחירת חזית</h3>
+            {sides.length === 0 ? (
+              <div className="text-sm text-muted-foreground">אין פריטים בפרויקט</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {sides.map(sd => (
+                  <button key={sd}
+                    onClick={() => { setSide(sd); setSelectedIds([]); }}
+                    className={`px-4 h-10 rounded-lg border text-sm font-medium transition ${
+                      side === sd
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background/60 border-border hover:border-primary"
                     }`}>
-                      <td className="px-3 py-2 text-xs font-inter tabular-nums text-muted-foreground">{row.rowIndex}</td>
-                      <td className="px-3 py-2 text-xs font-mono truncate max-w-[120px]" title={row.ifcGuid}>{row.ifcGuid || "—"}</td>
-                      <td className="px-3 py-2 text-xs">{row.side || "—"}</td>
-                      <td className="px-3 py-2 text-xs font-inter tabular-nums">{row.floor ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs font-inter tabular-nums">{row.unit ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">{row.type || "—"}</td>
-                      <td className="px-3 py-2 text-xs font-mono">{row.unitCode || "—"}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          {isMatched ? (
-                            <span className="inline-flex items-center gap-1 text-status-completed text-xs">
-                              <Check className="w-3.5 h-3.5" />
-                              <span className="font-mono">{item.id}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-status-rejected text-xs">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              ללא התאמה
-                            </span>
-                          )}
-                          <select
-                            value={row.matchedItemId ?? (item?.id ?? "")}
-                            onChange={e => setRowItem(idx, e.target.value)}
-                            className="h-7 max-w-[140px] bg-background/60 border border-border rounded text-[11px] px-1"
-                            title="בחר פריט ידנית"
-                          >
-                            <option value="">— דלג —</option>
-                            {items.map(it => (
-                              <option key={it.id} value={it.id}>
-                                {it.side} · קומה {it.floor} · מיקום {it.unit}
-                              </option>
-                            ))}
-                          </select>
-                          {isManual && (
-                            <button
-                              onClick={() => setRows(prev => prev.map((r, i) => i === idx ? { ...r, matchedItemId: undefined } : r))}
-                              className="text-muted-foreground hover:text-foreground"
-                              title="בטל בחירה ידנית"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-xs font-mono">{barcode || "—"}</td>
-                      <td className="px-3 py-2 text-xs">
-                        {source === "excel" && <span className="text-primary">מהקובץ</span>}
-                        {source === "existing" && <span className="text-muted-foreground">קיים</span>}
-                        {source === "generated" && <span className="text-status-in-progress">נוצר</span>}
-                        {!source && "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    {sd}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {side && (
+            <>
+              {/* 2. Mode */}
+              <section>
+                <h3 className="font-bold text-sm mb-2">2. אופן הבחירה</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <ModeCard icon={Rows3} label="קומה (רוחב)" active={mode === "floor"} onClick={() => onModeChange("floor")} />
+                  <ModeCard icon={Columns3} label="סטריפ (מלמטה למעלה)" active={mode === "strip"} onClick={() => onModeChange("strip")} />
+                  <ModeCard icon={MousePointerClick} label="יחידה בודדת" active={mode === "single"} onClick={() => onModeChange("single")} />
+                  <ModeCard icon={CheckSquare} label="מספר יחידות" active={mode === "multi"} onClick={() => onModeChange("multi")} />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  הדפסה מוגבלת לקבוצה אחת בלבד — קומה, סטריפ, יחידה בודדת או מספר יחידות נבחרות.
+                </p>
+              </section>
+
+              {/* 3. Selection */}
+              <section>
+                <h3 className="font-bold text-sm mb-2">
+                  3. {mode === "floor" ? "בחר קומה" : mode === "strip" ? "בחר סטריפ" : "בחר יחידות בגריד"}
+                </h3>
+
+                {(mode === "floor" || mode === "strip") && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(mode === "floor" ? floors : units).map(n => {
+                      const isSel = mode === "floor"
+                        ? selectedItems.length > 0 && selectedItems.every(i => i.floor === n)
+                        : selectedItems.length > 0 && selectedItems.every(i => i.unit === n);
+                      return (
+                        <button key={n}
+                          onClick={() => mode === "floor" ? selectFloor(n) : selectStrip(n)}
+                          className={`min-w-[42px] h-8 px-2 rounded border text-xs font-mono tabular-nums transition ${
+                            isSel ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background/60 border-border hover:border-primary"
+                          }`}>
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Grid view */}
+                <div className="overflow-x-auto border border-border rounded-lg bg-background/40">
+                  <table className="text-[11px]">
+                    <thead>
+                      <tr>
+                        <th className="px-2 py-1.5 text-muted-foreground font-semibold text-right sticky right-0 bg-muted/40">קומה \ מיקום</th>
+                        {units.map(u => (
+                          <th key={u} className="px-2 py-1.5 text-muted-foreground font-semibold tabular-nums text-center min-w-[44px]">{u}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {floors.map(f => (
+                        <tr key={f}>
+                          <td className="px-2 py-1 font-semibold tabular-nums text-right sticky right-0 bg-muted/40 border-l border-border">{f}</td>
+                          {units.map(u => {
+                            const it = grid.get(f)?.get(u);
+                            const selected = !!it && selectedIds.includes(it.id);
+                            if (!it) return <td key={u} className="px-1 py-1"><div className="w-9 h-7 rounded bg-muted/20" /></td>;
+                            return (
+                              <td key={u} className="px-1 py-1 text-center">
+                                <button
+                                  onClick={() => {
+                                    if (mode === "single") setSelectedIds([it.id]);
+                                    else if (mode === "multi") toggleId(it.id);
+                                    else if (mode === "floor") selectFloor(f);
+                                    else selectStrip(u);
+                                  }}
+                                  className={`w-9 h-7 rounded text-[10px] font-mono border transition ${
+                                    selected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background border-border hover:border-primary"
+                                  }`}
+                                  title={`קומה ${f} · מיקום ${u}`}>
+                                  ●
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            <div className="text-xs text-muted-foreground">
+              {selectedIds.length > 0
+                ? <>נבחרו <span className="text-foreground font-semibold">{selectedIds.length}</span> יחידות להדפסה</>
+                : "לא נבחרו יחידות"}
+            </div>
+            <Button onClick={() => { setPreviewIdx(0); setStep(2); }} disabled={selectedIds.length === 0}>
+              המשך לתצוגה מקדימה
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       )}
 
-      {rows.length === 0 && !file && (
-        <div className="surface-card p-12 text-center text-sm text-muted-foreground">
-          העלה קובץ Excel כדי להתחיל. הברקודים שיופקו ישובצו לפריטים בפרויקט ויופיעו אוטומטית במסך הפריטים ובמודל.
+      {step === 2 && (
+        <div className="surface-card p-5 space-y-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-bold text-sm">תצוגה מקדימה</h3>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                חזית {side} · {labels.length} מדבקות ·
+                {mode === "floor" && selectedItems[0] && <> קומה {selectedItems[0].floor}</>}
+                {mode === "strip" && selectedItems[0] && <> סטריפ {selectedItems[0].unit}</>}
+                {mode === "single" && <> יחידה בודדת</>}
+                {mode === "multi" && <> בחירה מרובה</>}
+              </div>
+            </div>
+            <button onClick={resetWizard} className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+              <ArrowRight className="w-3.5 h-3.5" /> בחירה מחדש
+            </button>
+          </div>
+
+          {labels.length > 0 && (
+            <>
+              {/* Pager */}
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setPreviewIdx(i => Math.max(0, i - 1))}
+                  disabled={previewIdx === 0}
+                  className="h-9 w-9 rounded-lg border border-border bg-background/60 hover:bg-secondary disabled:opacity-40 inline-flex items-center justify-center">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <div className="text-xs font-mono tabular-nums text-muted-foreground">
+                  {previewIdx + 1} / {labels.length}
+                </div>
+                <button
+                  onClick={() => setPreviewIdx(i => Math.min(labels.length - 1, i + 1))}
+                  disabled={previewIdx >= labels.length - 1}
+                  className="h-9 w-9 rounded-lg border border-border bg-background/60 hover:bg-secondary disabled:opacity-40 inline-flex items-center justify-center">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Preview */}
+              <div className="flex justify-center py-4 bg-muted/20 rounded-lg">
+                <LabelPreview label={labels[previewIdx]} />
+              </div>
+
+              {/* Thumbnails strip */}
+              {labels.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {labels.map((l, i) => (
+                    <button key={l.item.id}
+                      onClick={() => setPreviewIdx(i)}
+                      className={`px-2 h-7 rounded border text-[10px] font-mono tabular-nums transition ${
+                        i === previewIdx
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background/60 border-border hover:border-primary"
+                      }`}>
+                      {l.floor}/{l.unit}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            <Button variant="outline" onClick={() => setStep(1)}>
+              <ArrowRight className="w-4 h-4" />
+              חזרה
+            </Button>
+            <Button onClick={handlePrint} disabled={labels.length === 0}>
+              <Printer className="w-4 h-4" />
+              אישור ושליחה להדפסה ({labels.length})
+            </Button>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/* ============================================================
+ * Small UI helpers
+ * ============================================================ */
+
+function StepPill({ n, label, active, done }: { n: number; label: string; active: boolean; done: boolean }) {
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-full border ${
+      active ? "bg-primary/10 border-primary text-primary"
+      : done ? "bg-status-completed/10 border-status-completed/40 text-status-completed"
+      : "bg-background/60 border-border text-muted-foreground"
+    }`}>
+      <span className={`w-5 h-5 rounded-full text-[10px] font-bold inline-flex items-center justify-center ${
+        active ? "bg-primary text-primary-foreground" : done ? "bg-status-completed text-white" : "bg-muted text-muted-foreground"
+      }`}>{n}</span>
+      <span className="text-xs font-semibold">{label}</span>
+    </div>
+  );
+}
+
+function ModeCard({ icon: Icon, label, active, onClick }: {
+  icon: React.ComponentType<{ className?: string }>; label: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1.5 h-20 rounded-lg border transition ${
+        active ? "bg-primary/10 border-primary text-primary"
+               : "bg-background/60 border-border hover:border-primary text-foreground"
+      }`}>
+      <Icon className="w-5 h-5" />
+      <span className="text-xs font-semibold text-center px-1">{label}</span>
+    </button>
   );
 }
