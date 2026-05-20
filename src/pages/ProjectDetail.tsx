@@ -215,6 +215,11 @@ export default function ProjectDetail() {
         <ProjectItemsTab items={items} />
       )}
 
+      {activeTab === "barcodes" && (
+        <BarcodesTab items={items} />
+      )}
+
+
       {activeTab === "settings" && (
         <div className="space-y-6 max-w-2xl">
           <div className="glass-card p-6 space-y-4">
