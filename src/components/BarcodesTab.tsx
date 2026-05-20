@@ -23,9 +23,25 @@ interface LabelRow {
   matchedItemId?: string | null; // null = no match; undefined = not yet resolved
 }
 
-function lower(s: unknown) {
-  return String(s ?? "").trim().toLowerCase();
+function s(v: unknown): string {
+  return String(v ?? "").trim();
 }
+
+/** Convert Excel serial date (or string) to DD/MM/YYYY. */
+function toDateStr(v: unknown): string {
+  if (v == null || v === "") return "";
+  if (typeof v === "number" && v > 20000 && v < 80000) {
+    // Excel serial date — 1900-based with the well-known leap bug.
+    const ms = Math.round((v - 25569) * 86400 * 1000);
+    const d = new Date(ms);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+    }
+  }
+  return s(v);
+}
+
+const SIDE_PATTERN = /^[NSEW]-?[NSEW]?$/i;
 
 function parseLabelExcel(file: File): Promise<LabelRow[]> {
   return new Promise((resolve, reject) => {
@@ -33,44 +49,83 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
+        // Prefer a sheet whose name contains "הדפס" / "ברקוד"
+        const sheetName =
+          wb.SheetNames.find(n => /הדפס|ברקוד/.test(n)) || wb.SheetNames[0];
+        const sheet = wb.Sheets[sheetName];
         const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
         if (raw.length < 2) return resolve([]);
 
+        // Find header row = first with ≥3 non-empty cells in first 10 rows.
         let headerIdx = -1;
         for (let r = 0; r < Math.min(raw.length, 10); r++) {
-          if (raw[r].filter(c => c !== "" && c != null).length >= 2) { headerIdx = r; break; }
+          if (raw[r].filter(c => c !== "" && c != null).length >= 3) { headerIdx = r; break; }
         }
-        if (headerIdx < 0) return resolve([]);
-        const headers = raw[headerIdx].map(h => lower(h));
+        // If row 0 looks like data (no Hebrew header words), treat as headerless.
+        const headers = headerIdx >= 0 ? raw[headerIdx].map(h => s(h).toLowerCase()) : [];
+        const dataRows = raw.slice(headerIdx + 1).filter(r => r && r.some(c => c !== "" && c != null));
+        if (dataRows.length === 0) return resolve([]);
 
-        const col = (...keys: string[]) => {
-          for (const k of keys) {
-            const i = headers.indexOf(k.toLowerCase());
-            if (i !== -1) return i;
+        const width = Math.max(...dataRows.map(r => r.length));
+
+        // Find all column indices for a given header keyword.
+        const colsByName = (...keys: string[]): number[] => {
+          const out: number[] = [];
+          headers.forEach((h, i) => { if (keys.some(k => h === k.toLowerCase())) out.push(i); });
+          return out;
+        };
+
+        // Pick the column whose data rows are mostly numeric (for floor/unit when "מיקום" appears twice).
+        const pickNumericCol = (candidates: number[]): number => {
+          if (candidates.length <= 1) return candidates[0] ?? -1;
+          let best = candidates[0], bestScore = -1;
+          for (const c of candidates) {
+            let score = 0;
+            for (const r of dataRows.slice(0, 30)) {
+              const v = s(r[c]);
+              if (v && /^-?\d+(\.\d+)?$/.test(v)) score++;
+            }
+            if (score > bestScore) { bestScore = score; best = c; }
+          }
+          return best;
+        };
+
+        // Auto-detect side column by content (e.g. "N-W", "S-W", "N-S").
+        const detectSideCol = (): number => {
+          for (let c = 0; c < width; c++) {
+            let hits = 0, total = 0;
+            for (const r of dataRows.slice(0, 30)) {
+              const v = s(r[c]);
+              if (!v) continue;
+              total++;
+              if (SIDE_PATTERN.test(v)) hits++;
+            }
+            if (total > 0 && hits / total > 0.7) return c;
           }
           return -1;
         };
 
-        const iIfc    = col("IfcGUID", "IFCGUID", "IFC GUID", "GlobalId", "GUID");
-        const iSide   = col("Side", "חזית");
-        const iFloor  = col("Floor", "קומה", "קו'", "קו");
-        const iUnit   = col("Unit", "מיקום", "יחידה");
-        const iType   = col("Type", "סוג");
-        const iCode   = col("Code", "UnitCode", "Unit_NAME", "קוד");
-        const iWeight = col("Weight", "משקל");
-        const iBar    = col("Barcode", "ברקוד");
-        const iDate   = col("Date", "תאריך");
+        const iIfc    = colsByName("ifcguid", "ifc guid", "globalid", "guid")[0] ?? -1;
+        const iFloor  = pickNumericCol(colsByName("floor", "קומה", "קו'", "קו"));
+        const unitCols = colsByName("unit", "מיקום", "יחידה");
+        // If two "מיקום" columns: the numeric one is unit, the textual one is the location label.
+        const iUnit   = pickNumericCol(unitCols);
+        const iType   = colsByName("type", "סוג", "מק\"ט", 'מק"ט', "catalog")[0] ?? -1;
+        const iCode   = colsByName("code", "unitcode", "unit_name", "קוד", "תאור", "description")[0] ?? -1;
+        const iWeight = colsByName("weight", "משקל")[0] ?? -1;
+        const iBar    = colsByName("barcode", "ברקוד")[0] ?? -1;
+        const iDate   = colsByName("date", "תאריך")[0] ?? -1;
+        let iSide     = colsByName("side", "חזית")[0] ?? -1;
+        if (iSide < 0) iSide = detectSideCol();
 
         const out: LabelRow[] = [];
-        for (let r = headerIdx + 1; r < raw.length; r++) {
-          const row = raw[r];
-          if (!row || row.every(c => c === "" || c == null)) continue;
-          const get = (i: number) => (i >= 0 ? String(row[i] ?? "").trim() : "");
+        dataRows.forEach((row, idx) => {
+          const get = (i: number) => (i >= 0 ? s(row[i]) : "");
           const floorStr = get(iFloor);
           const unitStr  = get(iUnit);
+          const barRaw = get(iBar).replace(/^\*|\*$/g, "");
           out.push({
-            rowIndex: r - headerIdx,
+            rowIndex: idx + 1,
             ifcGuid:  get(iIfc) || undefined,
             side:     get(iSide) || undefined,
             floor:    floorStr ? parseInt(floorStr.replace(/[^0-9-]/g, ""), 10) || undefined : undefined,
@@ -78,10 +133,10 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
             type:     get(iType) || undefined,
             unitCode: get(iCode) || undefined,
             weight:   get(iWeight) || undefined,
-            barcode:  get(iBar) || undefined,
-            date:     get(iDate) || undefined,
+            barcode:  barRaw || undefined,
+            date:     iDate >= 0 ? toDateStr(row[iDate]) : undefined,
           });
-        }
+        });
         resolve(out);
       } catch (err) {
         reject(err);
@@ -95,12 +150,7 @@ function parseLabelExcel(file: File): Promise<LabelRow[]> {
 /** Build a normalized side key for soft matching ("S-North" ≈ "N-S" ≈ "N"). */
 function sideKey(s?: string): string {
   if (!s) return "";
-  const u = s.toUpperCase().replace(/[^A-Z]/g, "");
-  if (u.includes("SOUTH") || u === "S" || u.includes("S")) {
-    if (u.includes("NORTH") || u.includes("N")) {/* ambiguous */}
-  }
-  // crude: keep first letters of each token
-  return u;
+  return s.toUpperCase().replace(/[^NSEW]/g, "");
 }
 
 function matchItem(row: LabelRow, items: ProjectItem[]): ProjectItem | null {
