@@ -391,7 +391,7 @@ export default function BarcodesTab({ items: itemsProp, projectName }: { items: 
       toast.error("אין פריטים מותאמים להדפסה");
       return;
     }
-    const html = buildPrintHtml(toPrint, "פרויקט");
+    const html = buildPrintHtml(toPrint, projectName);
     const w = window.open("", "_blank");
     if (!w) {
       toast.error("חלון ההדפסה נחסם — אפשר חלונות קופצים");
