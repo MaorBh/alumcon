@@ -43,7 +43,9 @@ const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "bim", label: "מודל BIM", icon: Box },
   { id: "items", label: "פריטים", icon: List },
   { id: "barcodes", label: "ברקודים", icon: Barcode },
-  { id: "settings", label: "הגדרות", icon:
+  { id: "settings", label: "הגדרות", icon: Settings },
+];
+
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
