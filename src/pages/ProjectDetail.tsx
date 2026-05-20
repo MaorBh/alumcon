@@ -216,7 +216,7 @@ export default function ProjectDetail() {
       )}
 
       {activeTab === "barcodes" && (
-        <BarcodesTab items={items} />
+        <BarcodesTab items={items} projectName={project.name} />
       )}
 
 
