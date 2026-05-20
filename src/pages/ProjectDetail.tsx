@@ -2,10 +2,11 @@ import { useParams, Link } from "react-router-dom";
 import { PROJECTS, PROJECT_ITEMS, STATIONS, ItemStatus, updateItemStatus } from "@/data/mockData";
 import StatusBadge from "@/components/StatusBadge";
 import ProjectItemsTab from "@/components/ProjectItemsTab";
+import BarcodesTab from "@/components/BarcodesTab";
 import KpiCard from "@/components/KpiCard";
 import StationCard from "@/components/StationCard";
 import BimViewer from "@/components/BimViewer";
-import { ArrowRight, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, List, Settings, Box } from "lucide-react";
+import { ArrowRight, Package, CheckCircle, AlertTriangle, Clock, LayoutDashboard, List, Settings, Box, Barcode } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 
 const statusToColor: Record<ItemStatus, string> = {
@@ -35,14 +36,16 @@ function getQcStatus(item: { qcApproved: boolean; status: ItemStatus; stationHis
   return "not_checked";
 }
 
-type Tab = "dashboard" | "bim" | "items" | "settings";
+type Tab = "dashboard" | "bim" | "items" | "barcodes" | "settings";
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "דשבורד", icon: LayoutDashboard },
   { id: "bim", label: "מודל BIM", icon: Box },
   { id: "items", label: "פריטים", icon: List },
+  { id: "barcodes", label: "ברקודים", icon: Barcode },
   { id: "settings", label: "הגדרות", icon: Settings },
 ];
+
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -211,6 +214,11 @@ export default function ProjectDetail() {
       {activeTab === "items" && (
         <ProjectItemsTab items={items} />
       )}
+
+      {activeTab === "barcodes" && (
+        <BarcodesTab items={items} />
+      )}
+
 
       {activeTab === "settings" && (
         <div className="space-y-6 max-w-2xl">
