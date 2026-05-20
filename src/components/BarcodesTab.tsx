@@ -312,7 +312,7 @@ function buildPrintHtml(rows: { row: LabelRow; item: ProjectItem; barcode: strin
 </html>`;
 }
 
-export default function BarcodesTab({ items: itemsProp }: { items: ProjectItem[] }) {
+export default function BarcodesTab({ items: itemsProp, projectName }: { items: ProjectItem[]; projectName: string }) {
   const { id: projectId } = useParams<{ id: string }>();
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<LabelRow[]>([]);
