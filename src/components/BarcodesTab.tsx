@@ -204,7 +204,7 @@ function labelInnerHtml(l: LabelData): string {
   return `
     ${l.weight ? `
     <div class="weight-side">
-      <svg class="bar-vert"></svg>
+      <div class="bar-vert-wrap"><svg class="bar-vert"></svg></div>
       <div class="weight-text">
         <div class="wlabel">משקל</div>
         <div class="wvalue">${l.weight}</div>
@@ -212,13 +212,17 @@ function labelInnerHtml(l: LabelData): string {
       </div>
     </div>` : ""}
     <div class="info-side ${l.weight ? "" : "full"}">
-      <div class="type">${l.type}</div>
-      <div class="side">${l.side}</div>
-      <div class="loc">קו' ${l.floor}, מיקום ${l.unit}</div>
-      ${l.code ? `<div class="code">${l.code}</div>` : ""}
-      <svg class="bar-horiz" data-barcode="${l.barcode}"></svg>
-      <div class="bartext">*${l.barcode}*</div>
-      <div class="date">${l.date}</div>
+      <div class="info-top">
+        <div class="type">${l.type}</div>
+        <div class="side">${l.side}</div>
+        <div class="loc">קו' ${l.floor}, מיקום ${l.unit}</div>
+        ${l.code ? `<div class="code">${l.code}</div>` : ""}
+      </div>
+      <div class="info-bot">
+        <svg class="bar-horiz" data-barcode="${l.barcode}"></svg>
+        <div class="bartext">*${l.barcode}*</div>
+        <div class="date">${l.date}</div>
+      </div>
     </div>
   `;
 }
@@ -229,23 +233,26 @@ const LABEL_CSS = `
   .toolbar { position: sticky; top: 0; z-index: 10; background: #fff; padding: 10px; border-bottom: 1px solid #ccc;
     display: flex; justify-content: space-between; align-items: center; margin: -12px -12px 16px; }
   .toolbar button { background: #111; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-  .label { display: flex; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
+  .label { display: flex; flex-direction: row-reverse; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
     margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-  .weight-side { width: 38%; border-left: 1px solid #000; display: flex; align-items: center; padding: 3mm; gap: 2mm; }
-  .bar-vert { width: 8mm; height: 100%; }
-  .weight-text { flex: 1; text-align: center; line-height: 1; }
-  .wlabel { font-size: 11pt; font-weight: 600; }
-  .wvalue { font-size: 28pt; font-weight: 800; margin: 1mm 0; }
-  .wunit  { font-size: 12pt; font-weight: 700; }
-  .info-side { flex: 1; padding: 2.5mm 3mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .weight-side { width: 50%; border-right: 1px solid #000; display: flex; align-items: center; gap: 1mm; padding: 0; }
+  .bar-vert-wrap { width: 8mm; height: 40mm; position: relative; overflow: hidden; flex-shrink: 0; }
+  .bar-vert { position: absolute; top: 50%; left: 50%; width: 38mm; height: 8mm; transform: translate(-50%, -50%) rotate(-90deg); transform-origin: center center; }
+  .weight-text { flex: 1; text-align: center; line-height: 1; padding: 2mm 1mm; }
+  .wlabel { font-size: 14pt; font-weight: 700; }
+  .wvalue { font-size: 38pt; font-weight: 900; margin: 2mm 0; line-height: 1; }
+  .wunit  { font-size: 14pt; font-weight: 700; }
+  .info-side { flex: 1; padding: 2mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
   .info-side.full { width: 100%; }
-  .type { font-size: 14pt; font-weight: 800; line-height: 1; }
-  .side { font-size: 12pt; font-weight: 700; line-height: 1; margin-top: 0.5mm; }
-  .loc  { font-size: 10pt; font-weight: 600; margin-top: 1mm; }
-  .code { font-size: 10pt; font-weight: 600; }
-  .bar-horiz { width: 100%; height: 11mm; margin-top: 1mm; }
-  .bartext { font-family: monospace; font-size: 8pt; text-align: center; letter-spacing: 0.5px; }
-  .date { font-size: 9pt; font-weight: 600; text-align: left; direction: ltr; }
+  .info-top { display: flex; flex-direction: column; gap: 0.8mm; }
+  .info-bot { display: flex; flex-direction: column; gap: 0.3mm; }
+  .type { font-size: 16pt; font-weight: 900; line-height: 1; }
+  .side { font-size: 14pt; font-weight: 800; line-height: 1; }
+  .loc  { font-size: 11pt; font-weight: 600; line-height: 1.1; }
+  .code { font-size: 11pt; font-weight: 600; line-height: 1.1; }
+  .bar-horiz { width: 100%; height: 10mm; display: block; }
+  .bartext { font-family: "Courier New", monospace; font-size: 8pt; text-align: center; letter-spacing: 1px; font-weight: 700; }
+  .date { font-size: 10pt; font-weight: 700; text-align: left; direction: ltr; margin-top: 0.5mm; }
   @media print { body { background: #fff; padding: 0; } .toolbar { display: none; } .label { border-color: #000; margin: 0 auto 4mm; } }
 `;
 
@@ -267,10 +274,10 @@ function buildPrintHtml(labels: LabelData[], projectName: string): string {
   ${labelsHtml}
   <script>
     document.querySelectorAll('svg.bar-horiz').forEach(function(svg){
-      try { JsBarcode(svg, svg.getAttribute('data-barcode'), { format: "CODE128", displayValue: false, margin: 0, height: 40, width: 1.6 }); } catch (e) {}
+      try { JsBarcode(svg, svg.getAttribute('data-barcode'), { format: "CODE128", displayValue: false, margin: 0, height: 38, width: 1.5 }); } catch (e) {}
     });
     document.querySelectorAll('svg.bar-vert').forEach(function(svg, i){
-      try { JsBarcode(svg, "W" + (i+1), { format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.4 }); svg.style.transform = 'rotate(90deg)'; } catch (e) {}
+      try { JsBarcode(svg, "W" + (i+1), { format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.2 }); } catch (e) {}
     });
   </script>
 </body>
@@ -306,26 +313,32 @@ function LabelPreview({ label }: { label: LabelData }) {
     <div
       dir="rtl"
       className="bg-white text-black border-2 border-black shadow-xl"
-      style={{ width: "105mm", height: "40mm", display: "flex", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
+      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row-reverse", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
     >
       {label.weight && (
-        <div style={{ width: "38%", borderLeft: "1px solid #000", display: "flex", alignItems: "center", padding: "3mm", gap: "2mm" }}>
-          <svg ref={vertRef} style={{ width: "8mm", height: "100%", transform: "rotate(90deg)" }} />
-          <div style={{ flex: 1, textAlign: "center", lineHeight: 1 }}>
-            <div style={{ fontSize: "11pt", fontWeight: 600 }}>משקל</div>
-            <div style={{ fontSize: "28pt", fontWeight: 800, margin: "1mm 0" }}>{label.weight}</div>
-            <div style={{ fontSize: "12pt", fontWeight: 700 }}>Kg</div>
+        <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
+          <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+            <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
+          </div>
+          <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
+            <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
+            <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{label.weight}</div>
+            <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
           </div>
         </div>
       )}
-      <div style={{ flex: 1, padding: "2.5mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.type}</div>
-        <div style={{ fontSize: "12pt", fontWeight: 700, lineHeight: 1, marginTop: "0.5mm" }}>{label.side}</div>
-        <div style={{ fontSize: "10pt", fontWeight: 600, marginTop: "1mm" }}>קו' {label.floor}, מיקום {label.unit}</div>
-        {label.code && <div style={{ fontSize: "10pt", fontWeight: 600 }}>{label.code}</div>}
-        <svg ref={horizRef} style={{ width: "100%", height: "11mm", marginTop: "1mm" }} />
-        <div style={{ fontFamily: "monospace", fontSize: "8pt", textAlign: "center", letterSpacing: "0.5px" }}>*{label.barcode}*</div>
-        <div style={{ fontSize: "9pt", fontWeight: 600, textAlign: "left", direction: "ltr" }}>{label.date}</div>
+      <div style={{ flex: 1, padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.8mm" }}>
+          <div style={{ fontSize: "16pt", fontWeight: 900, lineHeight: 1 }}>{label.type}</div>
+          <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.side}</div>
+          <div style={{ fontSize: "11pt", fontWeight: 600, lineHeight: 1.1 }}>קו' {label.floor}, מיקום {label.unit}</div>
+          {label.code && <div style={{ fontSize: "11pt", fontWeight: 600, lineHeight: 1.1 }}>{label.code}</div>}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.3mm" }}>
+          <svg ref={horizRef} style={{ width: "100%", height: "10mm", display: "block" }} />
+          <div style={{ fontFamily: "Courier New, monospace", fontSize: "8pt", textAlign: "center", letterSpacing: "1px", fontWeight: 700 }}>*{label.barcode}*</div>
+          <div style={{ fontSize: "10pt", fontWeight: 700, textAlign: "left", direction: "ltr", marginTop: "0.5mm" }}>{label.date}</div>
+        </div>
       </div>
     </div>
   );
