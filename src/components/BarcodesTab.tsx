@@ -201,17 +201,17 @@ function buildLabel(item: ProjectItem, projectId: string, rows: LabelRow[]): Lab
  * ============================================================ */
 
 function labelInnerHtml(l: LabelData): string {
+  const weightValue = l.weight || "360";
   return `
-    ${l.weight ? `
     <div class="weight-side">
       <div class="bar-vert-wrap"><svg class="bar-vert"></svg></div>
       <div class="weight-text">
         <div class="wlabel">משקל</div>
-        <div class="wvalue">${l.weight}</div>
+        <div class="wvalue">${weightValue}</div>
         <div class="wunit">Kg</div>
       </div>
-    </div>` : ""}
-    <div class="info-side ${l.weight ? "" : "full"}">
+    </div>
+    <div class="info-side">
       <div class="info-top">
         <div class="type">${l.type}</div>
         <div class="side">${l.side}</div>
@@ -233,7 +233,7 @@ const LABEL_CSS = `
   .toolbar { position: sticky; top: 0; z-index: 10; background: #fff; padding: 10px; border-bottom: 1px solid #ccc;
     display: flex; justify-content: space-between; align-items: center; margin: -12px -12px 16px; }
   .toolbar button { background: #111; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-  .label { display: flex; flex-direction: row-reverse; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
+  .label { display: flex; flex-direction: row; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
     margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
   .weight-side { width: 50%; border-right: 1px solid #000; display: flex; align-items: center; gap: 1mm; padding: 0; }
   .bar-vert-wrap { width: 8mm; height: 40mm; position: relative; overflow: hidden; flex-shrink: 0; }
@@ -242,8 +242,7 @@ const LABEL_CSS = `
   .wlabel { font-size: 14pt; font-weight: 700; }
   .wvalue { font-size: 38pt; font-weight: 900; margin: 2mm 0; line-height: 1; }
   .wunit  { font-size: 14pt; font-weight: 700; }
-  .info-side { flex: 1; padding: 2mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
-  .info-side.full { width: 100%; }
+  .info-side { width: 50%; padding: 2mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
   .info-top { display: flex; flex-direction: column; gap: 0.8mm; }
   .info-bot { display: flex; flex-direction: column; gap: 0.3mm; }
   .type { font-size: 16pt; font-weight: 900; line-height: 1; }
@@ -291,6 +290,7 @@ function buildPrintHtml(labels: LabelData[], projectName: string): string {
 function LabelPreview({ label }: { label: LabelData }) {
   const horizRef = useRef<SVGSVGElement>(null);
   const vertRef = useRef<SVGSVGElement>(null);
+  const weightValue = label.weight || "360";
 
   useEffect(() => {
     if (horizRef.current) {
@@ -300,7 +300,7 @@ function LabelPreview({ label }: { label: LabelData }) {
         });
       } catch {}
     }
-    if (vertRef.current && label.weight) {
+    if (vertRef.current) {
       try {
         JsBarcode(vertRef.current, "W-" + label.barcode, {
           format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.4,
@@ -313,21 +313,19 @@ function LabelPreview({ label }: { label: LabelData }) {
     <div
       dir="rtl"
       className="bg-white text-black border-2 border-black shadow-xl"
-      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row-reverse", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
+      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
     >
-      {label.weight && (
-        <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
-          <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
-            <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
-          </div>
-          <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
-            <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
-            <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{label.weight}</div>
-            <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
-          </div>
+      <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
+        <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
         </div>
-      )}
-      <div style={{ flex: 1, padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+        <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
+          <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
+          <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{weightValue}</div>
+          <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
+        </div>
+      </div>
+      <div style={{ width: "50%", padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.8mm" }}>
           <div style={{ fontSize: "16pt", fontWeight: 900, lineHeight: 1 }}>{label.type}</div>
           <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.side}</div>
