@@ -366,6 +366,46 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [previewIdx, setPreviewIdx] = useState(0);
 
+  // Printed labels tracking (persisted per project)
+  const printedKey = `barcodesPrinted:${projectId}`;
+  const [printedIds, setPrintedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(`barcodesPrinted:${projectId}`);
+      return new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch { return new Set<string>(); }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(printedKey, JSON.stringify(Array.from(printedIds))); } catch {}
+  }, [printedIds, printedKey]);
+
+  // Drag-to-select state (multi mode only)
+  const [dragStart, setDragStart] = useState<{ floor: number; unit: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ floor: number; unit: number } | null>(null);
+  const [dragAdditive, setDragAdditive] = useState(true);
+  useEffect(() => {
+    const up = () => {
+      if (dragStart && dragEnd) {
+        const fMin = Math.min(dragStart.floor, dragEnd.floor);
+        const fMax = Math.max(dragStart.floor, dragEnd.floor);
+        const uMin = Math.min(dragStart.unit, dragEnd.unit);
+        const uMax = Math.max(dragStart.unit, dragEnd.unit);
+        const rectIds = sideItems
+          .filter(i => i.floor >= fMin && i.floor <= fMax && i.unit >= uMin && i.unit <= uMax)
+          .map(i => i.id);
+        setSelectedIds(prev => {
+          if (dragAdditive) {
+            const s = new Set(prev); rectIds.forEach(id => s.add(id)); return Array.from(s);
+          } else {
+            const s = new Set(prev); rectIds.forEach(id => s.delete(id)); return Array.from(s);
+          }
+        });
+      }
+      setDragStart(null); setDragEnd(null);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, [dragStart, dragEnd, dragAdditive, sideItems]);
+
   const sides = useMemo(() => Array.from(new Set(items.map(i => i.side))).sort(), [items]);
 
   const sideItems = useMemo(() => items.filter(i => i.side === side), [items, side]);
