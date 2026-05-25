@@ -382,30 +382,6 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
   const [dragStart, setDragStart] = useState<{ floor: number; unit: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ floor: number; unit: number } | null>(null);
   const [dragAdditive, setDragAdditive] = useState(true);
-  useEffect(() => {
-    const up = () => {
-      if (dragStart && dragEnd) {
-        const fMin = Math.min(dragStart.floor, dragEnd.floor);
-        const fMax = Math.max(dragStart.floor, dragEnd.floor);
-        const uMin = Math.min(dragStart.unit, dragEnd.unit);
-        const uMax = Math.max(dragStart.unit, dragEnd.unit);
-        const rectIds = sideItems
-          .filter(i => i.floor >= fMin && i.floor <= fMax && i.unit >= uMin && i.unit <= uMax)
-          .map(i => i.id);
-        setSelectedIds(prev => {
-          if (dragAdditive) {
-            const s = new Set(prev); rectIds.forEach(id => s.add(id)); return Array.from(s);
-          } else {
-            const s = new Set(prev); rectIds.forEach(id => s.delete(id)); return Array.from(s);
-          }
-        });
-      }
-      setDragStart(null); setDragEnd(null);
-    };
-    window.addEventListener("mouseup", up);
-    return () => window.removeEventListener("mouseup", up);
-  }, [dragStart, dragEnd, dragAdditive, sideItems]);
-
   const sides = useMemo(() => Array.from(new Set(items.map(i => i.side))).sort(), [items]);
 
   const sideItems = useMemo(() => items.filter(i => i.side === side), [items, side]);
@@ -421,6 +397,41 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
     });
     return m;
   }, [sideItems]);
+
+  // Commit drag-selection rectangle on mouseup
+  useEffect(() => {
+    const up = () => {
+      if (dragStart && dragEnd) {
+        const fMin = Math.min(dragStart.floor, dragEnd.floor);
+        const fMax = Math.max(dragStart.floor, dragEnd.floor);
+        const uMin = Math.min(dragStart.unit, dragEnd.unit);
+        const uMax = Math.max(dragStart.unit, dragEnd.unit);
+        const rectIds = sideItems
+          .filter(i => i.floor >= fMin && i.floor <= fMax && i.unit >= uMin && i.unit <= uMax)
+          .map(i => i.id);
+        setSelectedIds(prev => {
+          const s = new Set(prev);
+          if (dragAdditive) rectIds.forEach(id => s.add(id));
+          else rectIds.forEach(id => s.delete(id));
+          return Array.from(s);
+        });
+      }
+      setDragStart(null); setDragEnd(null);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, [dragStart, dragEnd, dragAdditive, sideItems]);
+
+  // Rectangle currently being dragged (for preview highlight)
+  const dragRect = useMemo(() => {
+    if (!dragStart || !dragEnd) return null;
+    return {
+      fMin: Math.min(dragStart.floor, dragEnd.floor),
+      fMax: Math.max(dragStart.floor, dragEnd.floor),
+      uMin: Math.min(dragStart.unit, dragEnd.unit),
+      uMax: Math.max(dragStart.unit, dragEnd.unit),
+    };
+  }, [dragStart, dragEnd]);
 
   const handleFile = async (f: File | null) => {
     setFile(f);
