@@ -620,7 +620,7 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
                 )}
 
                 {/* Grid view */}
-                <div className="overflow-x-auto border border-border rounded-lg bg-background/40">
+                <div className="overflow-x-auto border border-border rounded-lg bg-background/40 select-none">
                   <table className="text-[11px]">
                     <thead>
                       <tr>
@@ -637,23 +637,39 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
                           {units.map(u => {
                             const it = grid.get(f)?.get(u);
                             const selected = !!it && selectedIds.includes(it.id);
+                            const printed = !!it && printedIds.has(it.id);
+                            const inDrag = !!dragRect && f >= dragRect.fMin && f <= dragRect.fMax && u >= dragRect.uMin && u <= dragRect.uMax;
                             if (!it) return <td key={u} className="px-1 py-1"><div className="w-9 h-7 rounded bg-muted/20" /></td>;
                             return (
                               <td key={u} className="px-1 py-1 text-center">
                                 <button
+                                  onMouseDown={(e) => {
+                                    if (mode !== "multi") return;
+                                    e.preventDefault();
+                                    setDragAdditive(!selected);
+                                    setDragStart({ floor: f, unit: u });
+                                    setDragEnd({ floor: f, unit: u });
+                                  }}
+                                  onMouseEnter={() => {
+                                    if (mode === "multi" && dragStart) setDragEnd({ floor: f, unit: u });
+                                  }}
                                   onClick={() => {
+                                    if (mode === "multi") return; // handled by drag
                                     if (mode === "single") setSelectedIds([it.id]);
-                                    else if (mode === "multi") toggleId(it.id);
                                     else if (mode === "floor") selectFloor(f);
                                     else selectStrip(u);
                                   }}
-                                  className={`w-9 h-7 rounded text-[10px] font-mono border transition ${
-                                    selected
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "bg-background border-border hover:border-primary"
+                                  className={`relative w-9 h-7 rounded text-[10px] font-mono border transition ${
+                                    inDrag
+                                      ? (dragAdditive ? "bg-primary/60 text-primary-foreground border-primary" : "bg-destructive/30 border-destructive")
+                                      : selected
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : printed
+                                          ? "bg-status-completed/20 border-status-completed/60 text-status-completed hover:border-status-completed"
+                                          : "bg-background border-border hover:border-primary"
                                   }`}
-                                  title={`קומה ${f} · מיקום ${u}`}>
-                                  ●
+                                  title={`קומה ${f} · מיקום ${u}${printed ? " · הודפס" : ""}`}>
+                                  {printed ? "✓" : "●"}
                                 </button>
                               </td>
                             );
@@ -663,6 +679,22 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
                     </tbody>
                   </table>
                 </div>
+                {mode === "multi" && (
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    טיפ: לחץ וגרור על הגריד לבחירת טווח רציף. גרירה מתא לא-מסומן תוסיף לבחירה, וגרירה מתא מסומן תסיר ממנה.
+                  </p>
+                )}
+                {printedIds.size > 0 && (
+                  <div className="flex items-center justify-between mt-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <span className="inline-block w-3 h-3 rounded bg-status-completed/20 border border-status-completed/60" />
+                      <span>הודפס בעבר ({printedIds.size})</span>
+                    </div>
+                    <button onClick={clearPrinted} className="text-muted-foreground hover:text-destructive underline-offset-2 hover:underline">
+                      אפס סימון הדפסה
+                    </button>
+                  </div>
+                )}
               </section>
             </>
           )}
