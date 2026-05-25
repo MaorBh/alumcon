@@ -290,6 +290,7 @@ function buildPrintHtml(labels: LabelData[], projectName: string): string {
 function LabelPreview({ label }: { label: LabelData }) {
   const horizRef = useRef<SVGSVGElement>(null);
   const vertRef = useRef<SVGSVGElement>(null);
+  const weightValue = label.weight || "360";
 
   useEffect(() => {
     if (horizRef.current) {
@@ -299,7 +300,7 @@ function LabelPreview({ label }: { label: LabelData }) {
         });
       } catch {}
     }
-    if (vertRef.current && label.weight) {
+    if (vertRef.current) {
       try {
         JsBarcode(vertRef.current, "W-" + label.barcode, {
           format: "CODE128", displayValue: false, margin: 0, height: 30, width: 1.4,
@@ -312,21 +313,19 @@ function LabelPreview({ label }: { label: LabelData }) {
     <div
       dir="rtl"
       className="bg-white text-black border-2 border-black shadow-xl"
-      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row-reverse", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
+      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
     >
-      {label.weight && (
-        <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
-          <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
-            <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
-          </div>
-          <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
-            <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
-            <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{label.weight}</div>
-            <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
-          </div>
+      <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
+        <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
         </div>
-      )}
-      <div style={{ flex: 1, padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+        <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
+          <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
+          <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{weightValue}</div>
+          <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
+        </div>
+      </div>
+      <div style={{ width: "50%", padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.8mm" }}>
           <div style={{ fontSize: "16pt", fontWeight: 900, lineHeight: 1 }}>{label.type}</div>
           <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.side}</div>
