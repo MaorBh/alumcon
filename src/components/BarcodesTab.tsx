@@ -494,9 +494,21 @@ export default function BarcodesTab({ items, projectName }: { items: ProjectItem
     if (!w) { toast.error("חלון ההדפסה נחסם — אפשר חלונות קופצים"); return; }
     // Persist barcodes back to items
     labels.forEach(l => { l.item.barcode = l.barcode; });
+    // Mark as printed
+    setPrintedIds(prev => {
+      const s = new Set(prev);
+      labels.forEach(l => s.add(l.item.id));
+      return s;
+    });
     w.document.write(html);
     w.document.close();
     toast.success(`נשלחו ${labels.length} מדבקות להדפסה`);
+  };
+
+  const clearPrinted = () => {
+    if (!confirm("לאפס סימון הדפסה לכל הפריטים בפרויקט?")) return;
+    setPrintedIds(new Set());
+    toast.success("סימון ההדפסה אופס");
   };
 
   /* -------------------- Render -------------------- */
