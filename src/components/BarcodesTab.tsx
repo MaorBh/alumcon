@@ -313,26 +313,32 @@ function LabelPreview({ label }: { label: LabelData }) {
     <div
       dir="rtl"
       className="bg-white text-black border-2 border-black shadow-xl"
-      style={{ width: "105mm", height: "40mm", display: "flex", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
+      style={{ width: "105mm", height: "40mm", display: "flex", flexDirection: "row-reverse", overflow: "hidden", fontFamily: "Heebo, Arial Hebrew, Arial, sans-serif" }}
     >
       {label.weight && (
-        <div style={{ width: "38%", borderLeft: "1px solid #000", display: "flex", alignItems: "center", padding: "3mm", gap: "2mm" }}>
-          <svg ref={vertRef} style={{ width: "8mm", height: "100%", transform: "rotate(90deg)" }} />
-          <div style={{ flex: 1, textAlign: "center", lineHeight: 1 }}>
-            <div style={{ fontSize: "11pt", fontWeight: 600 }}>משקל</div>
-            <div style={{ fontSize: "28pt", fontWeight: 800, margin: "1mm 0" }}>{label.weight}</div>
-            <div style={{ fontSize: "12pt", fontWeight: 700 }}>Kg</div>
+        <div style={{ width: "50%", borderRight: "1px solid #000", display: "flex", alignItems: "center", gap: "1mm" }}>
+          <div style={{ width: "8mm", height: "40mm", position: "relative", overflow: "hidden", flexShrink: 0 }}>
+            <svg ref={vertRef} style={{ position: "absolute", top: "50%", left: "50%", width: "38mm", height: "8mm", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center center" }} />
+          </div>
+          <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm" }}>
+            <div style={{ fontSize: "14pt", fontWeight: 700 }}>משקל</div>
+            <div style={{ fontSize: "38pt", fontWeight: 900, margin: "2mm 0", lineHeight: 1 }}>{label.weight}</div>
+            <div style={{ fontSize: "14pt", fontWeight: 700 }}>Kg</div>
           </div>
         </div>
       )}
-      <div style={{ flex: 1, padding: "2.5mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.type}</div>
-        <div style={{ fontSize: "12pt", fontWeight: 700, lineHeight: 1, marginTop: "0.5mm" }}>{label.side}</div>
-        <div style={{ fontSize: "10pt", fontWeight: 600, marginTop: "1mm" }}>קו' {label.floor}, מיקום {label.unit}</div>
-        {label.code && <div style={{ fontSize: "10pt", fontWeight: 600 }}>{label.code}</div>}
-        <svg ref={horizRef} style={{ width: "100%", height: "11mm", marginTop: "1mm" }} />
-        <div style={{ fontFamily: "monospace", fontSize: "8pt", textAlign: "center", letterSpacing: "0.5px" }}>*{label.barcode}*</div>
-        <div style={{ fontSize: "9pt", fontWeight: 600, textAlign: "left", direction: "ltr" }}>{label.date}</div>
+      <div style={{ flex: 1, padding: "2mm 3mm", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.8mm" }}>
+          <div style={{ fontSize: "16pt", fontWeight: 900, lineHeight: 1 }}>{label.type}</div>
+          <div style={{ fontSize: "14pt", fontWeight: 800, lineHeight: 1 }}>{label.side}</div>
+          <div style={{ fontSize: "11pt", fontWeight: 600, lineHeight: 1.1 }}>קו' {label.floor}, מיקום {label.unit}</div>
+          {label.code && <div style={{ fontSize: "11pt", fontWeight: 600, lineHeight: 1.1 }}>{label.code}</div>}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.3mm" }}>
+          <svg ref={horizRef} style={{ width: "100%", height: "10mm", display: "block" }} />
+          <div style={{ fontFamily: "Courier New, monospace", fontSize: "8pt", textAlign: "center", letterSpacing: "1px", fontWeight: 700 }}>*{label.barcode}*</div>
+          <div style={{ fontSize: "10pt", fontWeight: 700, textAlign: "left", direction: "ltr", marginTop: "0.5mm" }}>{label.date}</div>
+        </div>
       </div>
     </div>
   );
