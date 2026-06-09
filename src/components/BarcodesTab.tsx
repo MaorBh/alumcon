@@ -210,25 +210,28 @@ function buildLabel(item: ProjectItem, projectId: string, rows: LabelRow[]): Lab
 function labelInnerHtml(l: LabelData): string {
   const weightValue = l.weight || "360";
   return `
+    <div class="info-side">
+      <div class="info-inner">
+        <div class="info-top">
+          <div class="type">${l.type}</div>
+          <div class="side">${l.side}</div>
+          <div class="loc">קו' ${l.floor}, מיקום ${l.unit}</div>
+          ${l.code ? `<div class="code">${l.code}</div>` : ""}
+        </div>
+        <div class="info-bot">
+          <svg class="bar-horiz" data-barcode="${l.barcode}"></svg>
+          <div class="bartext">*${l.barcode}*</div>
+          <div class="date">${l.date}</div>
+        </div>
+      </div>
+      <div class="bar-edge-wrap right"><svg class="bar-vert"></svg></div>
+    </div>
     <div class="weight-side">
-      <div class="bar-vert-wrap"><svg class="bar-vert"></svg></div>
+      <div class="bar-edge-wrap left"><svg class="bar-vert"></svg></div>
       <div class="weight-text">
         <div class="wlabel">משקל</div>
         <div class="wvalue">${weightValue}</div>
         <div class="wunit">Kg</div>
-      </div>
-    </div>
-    <div class="info-side">
-      <div class="info-top">
-        <div class="type">${l.type}</div>
-        <div class="side">${l.side}</div>
-        <div class="loc">קו' ${l.floor}, מיקום ${l.unit}</div>
-        ${l.code ? `<div class="code">${l.code}</div>` : ""}
-      </div>
-      <div class="info-bot">
-        <svg class="bar-horiz" data-barcode="${l.barcode}"></svg>
-        <div class="bartext">*${l.barcode}*</div>
-        <div class="date">${l.date}</div>
       </div>
     </div>
   `;
@@ -241,24 +244,25 @@ const LABEL_CSS = `
     display: flex; justify-content: space-between; align-items: center; margin: -12px -12px 16px; }
   .toolbar button { background: #111; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
   .label { display: flex; flex-direction: row; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
-    margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-  .weight-side { width: 50%; border-right: 1px solid #000; display: flex; align-items: center; gap: 1mm; padding: 0; }
-  .bar-vert-wrap { width: 8mm; height: 40mm; position: relative; overflow: hidden; flex-shrink: 0; }
-  .bar-vert { position: absolute; top: 50%; left: 50%; width: 38mm; height: 8mm; transform: translate(-50%, -50%) rotate(-90deg); transform-origin: center center; }
-  .weight-text { flex: 1; text-align: center; line-height: 1; padding: 2mm 1mm; }
-  .wlabel { font-size: 14pt; font-weight: 700; }
-  .wvalue { font-size: 38pt; font-weight: 900; margin: 2mm 0; line-height: 1; }
-  .wunit  { font-size: 14pt; font-weight: 700; }
-  .info-side { width: 50%; padding: 2mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
-  .info-top { display: flex; flex-direction: column; gap: 0.8mm; }
+    margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; direction: rtl; }
+  .weight-side { width: 40%; border-left: 1.2px solid #000; display: flex; align-items: stretch; padding: 0; position: relative; }
+  .info-side { width: 60%; display: flex; align-items: stretch; padding: 0; position: relative; }
+  .info-inner { flex: 1; padding: 2mm 3mm 1.5mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+  .bar-edge-wrap { width: 7mm; height: 40mm; position: relative; overflow: hidden; flex-shrink: 0; }
+  .bar-vert { position: absolute; top: 50%; left: 50%; width: 38mm; height: 7mm; transform: translate(-50%, -50%) rotate(-90deg); transform-origin: center center; }
+  .weight-text { flex: 1; text-align: center; line-height: 1; padding: 2mm 1mm; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.5mm; }
+  .wlabel { font-size: 13pt; font-weight: 700; }
+  .wvalue { font-size: 36pt; font-weight: 900; line-height: 1; }
+  .wunit  { font-size: 13pt; font-weight: 700; }
+  .info-top { display: flex; flex-direction: column; gap: 0.6mm; text-align: right; }
   .info-bot { display: flex; flex-direction: column; gap: 0.3mm; }
-  .type { font-size: 16pt; font-weight: 900; line-height: 1; }
-  .side { font-size: 14pt; font-weight: 800; line-height: 1; }
-  .loc  { font-size: 11pt; font-weight: 600; line-height: 1.1; }
-  .code { font-size: 11pt; font-weight: 600; line-height: 1.1; }
-  .bar-horiz { width: 100%; height: 10mm; display: block; }
+  .type { font-size: 15pt; font-weight: 900; line-height: 1; }
+  .side { font-size: 13pt; font-weight: 800; line-height: 1; }
+  .loc  { font-size: 10pt; font-weight: 600; line-height: 1.15; }
+  .code { font-size: 10pt; font-weight: 700; line-height: 1.15; }
+  .bar-horiz { width: 100%; height: 9mm; display: block; }
   .bartext { font-family: "Courier New", monospace; font-size: 8pt; text-align: center; letter-spacing: 1px; font-weight: 700; }
-  .date { font-size: 10pt; font-weight: 700; text-align: left; direction: ltr; margin-top: 0.5mm; }
+  .date { font-size: 9pt; font-weight: 700; text-align: left; direction: ltr; margin-top: 0.5mm; }
   @media print { body { background: #fff; padding: 0; } .toolbar { display: none; } .label { border-color: #000; margin: 0 auto 4mm; } }
 `;
 
