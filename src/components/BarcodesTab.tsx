@@ -263,7 +263,13 @@ const LABEL_CSS = `
   .bar-horiz { width: 100%; height: 9mm; display: block; }
   .bartext { font-family: "Courier New", monospace; font-size: 8pt; text-align: center; letter-spacing: 1px; font-weight: 700; }
   .date { font-size: 9pt; font-weight: 700; text-align: left; direction: ltr; margin-top: 0.5mm; }
-  @media print { body { background: #fff; padding: 0; } .toolbar { display: none; } .label { border-color: #000; margin: 0 auto 4mm; } }
+  @page { size: 105mm 40mm; margin: 0; }
+  @media print {
+    html, body { width: 105mm; background: #fff; padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar { display: none; }
+    .label { width: 105mm !important; height: 40mm !important; margin: 0 !important; border: 1px solid #000; page-break-after: always; break-after: page; }
+    .label:last-child { page-break-after: auto; break-after: auto; }
+  }
 `;
 
 function buildPrintHtml(labels: LabelData[], projectName: string): string {
