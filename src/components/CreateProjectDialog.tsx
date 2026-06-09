@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Upload, ChevronLeft, ChevronRight, FolderKanban, Building2, FileSpreadsheet, Check } from "lucide-react";
-import { STATIONS, type StationId, type ImportedItem } from "@/data/mockData";
+import { STATIONS, type StationId, type ImportedItem, type PriorityCatalogRow, parsePriorityRows } from "@/data/mockData";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -22,9 +22,12 @@ interface ProjectFormData {
   enabledStations: StationId[];
   file: File | null;
   parsedItems: ImportedItem[];
+  priorityProjectNumber: string;
+  priorityFile: File | null;
+  priorityCatalog: PriorityCatalogRow[];
 }
 
-const STEPS = ["פרטי פרויקט", "העלאת קובץ", "סיכום"];
+const STEPS = ["פרטי פרויקט", "Priority", "העלאת קובץ", "סיכום"];
 
 interface Props {
   open: boolean;
