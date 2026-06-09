@@ -190,6 +190,23 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     }
   };
 
+  const handlePriorityFile = async (f: File | null) => {
+    setForm(prev => ({ ...prev, priorityFile: f, priorityCatalog: [] }));
+    if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      const rows = parsePriorityRows(raw);
+      setForm(prev => ({ ...prev, priorityCatalog: rows }));
+      if (rows.length > 0) toast.success(`נטענו ${rows.length} מק"טים מקטלוג Priority`);
+      else toast.warning('לא זוהו מק"טים — ודא שיש עמודה "מקט" בקובץ');
+    } catch {
+      toast.error("שגיאה בקריאת קובץ Priority");
+    }
+  };
+
   const toggleSide = (side: string) => {
     setForm(f => ({
       ...f,
