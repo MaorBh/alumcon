@@ -305,8 +305,7 @@ function buildPrintHtml(labels: LabelData[], projectName: string): string {
 
 function LabelPreview({ label }: { label: LabelData }) {
   const horizRef = useRef<SVGSVGElement>(null);
-  const vertRef1 = useRef<SVGSVGElement>(null);
-  const vertRef2 = useRef<SVGSVGElement>(null);
+  const vertRef = useRef<SVGSVGElement>(null);
   const weightValue = label.weight || "360";
 
   useEffect(() => {
@@ -317,14 +316,13 @@ function LabelPreview({ label }: { label: LabelData }) {
         });
       } catch {}
     }
-    [vertRef1.current, vertRef2.current].forEach(svg => {
-      if (!svg) return;
+    if (vertRef.current) {
       try {
-        JsBarcode(svg, "W-" + label.barcode, {
+        JsBarcode(vertRef.current, "W-" + label.barcode, {
           format: "CODE128", displayValue: false, margin: 0, height: 28, width: 1.3,
         });
       } catch {}
-    });
+    }
   }, [label]);
 
   const vertBarStyle: React.CSSProperties = {
@@ -357,19 +355,16 @@ function LabelPreview({ label }: { label: LabelData }) {
             <div style={{ fontSize: "9pt", fontWeight: 700, textAlign: "left", direction: "ltr", marginTop: "0.5mm" }}>{label.date}</div>
           </div>
         </div>
-        <div style={edgeWrapStyle}>
-          <svg ref={vertRef2} style={vertBarStyle} />
-        </div>
       </div>
-      {/* WEIGHT SIDE (visually left in RTL) */}
-      <div style={{ width: "40%", borderLeft: "1.2px solid #000", display: "flex", alignItems: "stretch" }}>
-        <div style={edgeWrapStyle}>
-          <svg ref={vertRef1} style={vertBarStyle} />
-        </div>
+      {/* WEIGHT SIDE (visually left in RTL) — divider on right edge */}
+      <div style={{ width: "40%", borderRight: "1.5px solid #000", display: "flex", alignItems: "stretch" }}>
         <div style={{ flex: 1, textAlign: "center", lineHeight: 1, padding: "2mm 1mm", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "1.5mm" }}>
           <div style={{ fontSize: "13pt", fontWeight: 700 }}>משקל</div>
           <div style={{ fontSize: "36pt", fontWeight: 900, lineHeight: 1 }}>{weightValue}</div>
           <div style={{ fontSize: "13pt", fontWeight: 700 }}>Kg</div>
+        </div>
+        <div style={edgeWrapStyle}>
+          <svg ref={vertRef} style={vertBarStyle} />
         </div>
       </div>
     </div>
