@@ -160,6 +160,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
 
   const canNext = () => {
     if (step === 0) return form.name.trim().length > 0;
+    if (step === 1) return form.priorityProjectNumber.trim().length > 0;
     return true;
   };
 
