@@ -276,8 +276,67 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 1: File upload */}
+        {/* Step 1: Priority */}
         {step === 1 && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>מספר פרויקט בפריוריטי *</Label>
+              <Input
+                value={form.priorityProjectNumber}
+                onChange={e => setForm(f => ({ ...f, priorityProjectNumber: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                placeholder="לדוגמה: 0109"
+                inputMode="numeric"
+              />
+              <p className="text-xs text-muted-foreground">
+                4 ספרות (AAAA) — זה החלק הראשון של הברקוד <span className="font-mono">AAAA-BBBB-CC-DD</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <FileSpreadsheet className="w-4 h-4" /> קטלוג מק"טים מ-Priority (CSV / Excel)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                העלה קובץ עם עמודות <strong>מקט</strong>, <strong>Unit_NAME</strong>, <strong>TYPE</strong>, <strong>Weight</strong>.
+                4 הספרות האחרונות של המק"ט יהפכו ל-BBBB בברקוד.
+              </p>
+              <label
+                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                  form.priorityFile ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <Upload className={`w-7 h-7 ${form.priorityFile ? "text-primary" : "text-muted-foreground"}`} />
+                {form.priorityFile ? (
+                  <div className="text-center">
+                    <p className="text-sm font-medium">{form.priorityFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(form.priorityFile.size / 1024).toFixed(1)} KB</p>
+                    {form.priorityCatalog.length > 0 ? (
+                      <p className="text-xs text-green-600 mt-1 font-medium">
+                        ✓ {form.priorityCatalog.length} מק"טים זוהו
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-500 mt-1">⚠ לא זוהו מק"טים</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">לחץ לבחירת קובץ Priority</p>
+                    <p className="text-xs text-muted-foreground">.csv, .xlsx, .xls</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={e => handlePriorityFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: File upload */}
+        {step === 2 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-1.5">
               <FileSpreadsheet className="w-4 h-4" /> העלאת קובץ פריטים (Excel / CSV)
@@ -327,8 +386,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 2: Summary */}
-        {step === 2 && (
+        {/* Step 3: Summary */}
+        {step === 3 && (
           <div className="space-y-4">
             <div className="glass-card p-4 space-y-3">
               <div className="flex justify-between">
@@ -342,7 +401,19 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">קובץ</span>
+                <span className="text-sm text-muted-foreground">מספר פרויקט Priority</span>
+                <span className="text-sm font-mono font-bold text-primary">
+                  {form.priorityProjectNumber.padStart(4, "0")}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">קטלוג Priority</span>
+                <span className="text-sm">
+                  {form.priorityCatalog.length > 0 ? `${form.priorityCatalog.length} מק"טים` : "לא הועלה"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">קובץ פריטים</span>
                 <span className="text-sm">{form.file ? form.file.name : "לא הועלה"}</span>
               </div>
               {form.parsedItems.length > 0 && (
@@ -351,6 +422,9 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                   <span className="text-sm font-inter font-bold text-primary">{form.parsedItems.length}</span>
                 </div>
               )}
+              <div className="pt-2 border-t border-border/60 text-xs text-muted-foreground">
+                דוגמת ברקוד: <span className="font-mono">{form.priorityProjectNumber.padStart(4, "0")}-XXXX-CC-DD</span>
+              </div>
             </div>
           </div>
         )}
