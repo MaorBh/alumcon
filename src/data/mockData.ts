@@ -36,6 +36,12 @@ export interface ProjectItem {
   mashkofUp?: string;
   mashkofDown?: string;
   floorLabel?: string;
+  /** Priority full SKU, e.g. "5-0-0042" */
+  prioritySku?: string;
+  /** 4-digit suffix of Priority SKU (BBBB part of barcode) */
+  prioritySuffix?: string;
+  /** Unit weight (kg) from Priority catalog */
+  priorityWeight?: number;
 }
 
 export interface Project {
@@ -49,6 +55,8 @@ export interface Project {
   sides: string[];
   floors: number[];
   urn?: string;
+  /** Priority project number (AAAA part of barcode), 4-digit zero-padded */
+  priorityProjectNumber?: string;
 }
 
 /** Row imported from Excel/CSV — all fields optional except ifcGuid */
@@ -68,6 +76,54 @@ export interface ImportedItem {
   mashkofDown?: string;
   done?: string;
   floorLabel?: string;
+}
+
+/** Row from Priority CSV/XLSX catalog */
+export interface PriorityCatalogRow {
+  sku: string;          // e.g. "5-0-0042"
+  suffix: string;       // last 4 digits, e.g. "0042"
+  unitName: string;     // e.g. "WND-R_110_BNY"
+  type: string;         // e.g. "WND"
+  height?: number;
+  width?: number;
+  weight?: number;
+  count?: number;
+}
+
+export const PRIORITY_CATALOG: Record<string, PriorityCatalogRow[]> = {};
+
+function pad(n: string | number, len: number): string {
+  return String(n).padStart(len, '0');
+}
+
+export function buildBarcode(
+  priorityProjectNumber: string | undefined,
+  suffix: string | undefined,
+  floor: number,
+  unit: number,
+): string {
+  const aaaa = pad((priorityProjectNumber || '0').replace(/\D/g, '') || '0', 4);
+  const bbbb = pad((suffix || '0').replace(/\D/g, '') || '0', 4);
+  return `${aaaa}-${bbbb}-${pad(floor, 2)}-${pad(unit, 2)}`;
+}
+
+function matchPriorityRow(
+  catalog: PriorityCatalogRow[],
+  unitName?: string,
+  type?: string,
+): PriorityCatalogRow | undefined {
+  if (!catalog.length) return undefined;
+  if (unitName) {
+    const u = unitName.trim().toLowerCase();
+    const exact = catalog.find(r => r.unitName.toLowerCase() === u);
+    if (exact) return exact;
+  }
+  if (type) {
+    const t = type.trim().toLowerCase();
+    const byType = catalog.find(r => r.type.toLowerCase() === t);
+    if (byType) return byType;
+  }
+  return undefined;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
