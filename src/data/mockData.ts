@@ -36,6 +36,12 @@ export interface ProjectItem {
   mashkofUp?: string;
   mashkofDown?: string;
   floorLabel?: string;
+  /** Priority full SKU, e.g. "5-0-0042" */
+  prioritySku?: string;
+  /** 4-digit suffix of Priority SKU (BBBB part of barcode) */
+  prioritySuffix?: string;
+  /** Unit weight (kg) from Priority catalog */
+  priorityWeight?: number;
 }
 
 export interface Project {
@@ -49,6 +55,8 @@ export interface Project {
   sides: string[];
   floors: number[];
   urn?: string;
+  /** Priority project number (AAAA part of barcode), 4-digit zero-padded */
+  priorityProjectNumber?: string;
 }
 
 /** Row imported from Excel/CSV — all fields optional except ifcGuid */
@@ -68,6 +76,54 @@ export interface ImportedItem {
   mashkofDown?: string;
   done?: string;
   floorLabel?: string;
+}
+
+/** Row from Priority CSV/XLSX catalog */
+export interface PriorityCatalogRow {
+  sku: string;          // e.g. "5-0-0042"
+  suffix: string;       // last 4 digits, e.g. "0042"
+  unitName: string;     // e.g. "WND-R_110_BNY"
+  type: string;         // e.g. "WND"
+  height?: number;
+  width?: number;
+  weight?: number;
+  count?: number;
+}
+
+export const PRIORITY_CATALOG: Record<string, PriorityCatalogRow[]> = {};
+
+function pad(n: string | number, len: number): string {
+  return String(n).padStart(len, '0');
+}
+
+export function buildBarcode(
+  priorityProjectNumber: string | undefined,
+  suffix: string | undefined,
+  floor: number,
+  unit: number,
+): string {
+  const aaaa = pad((priorityProjectNumber || '0').replace(/\D/g, '') || '0', 4);
+  const bbbb = pad((suffix || '0').replace(/\D/g, '') || '0', 4);
+  return `${aaaa}-${bbbb}-${pad(floor, 2)}-${pad(unit, 2)}`;
+}
+
+function matchPriorityRow(
+  catalog: PriorityCatalogRow[],
+  unitName?: string,
+  type?: string,
+): PriorityCatalogRow | undefined {
+  if (!catalog.length) return undefined;
+  if (unitName) {
+    const u = unitName.trim().toLowerCase();
+    const exact = catalog.find(r => r.unitName.toLowerCase() === u);
+    if (exact) return exact;
+  }
+  if (type) {
+    const t = type.trim().toLowerCase();
+    const byType = catalog.find(r => r.type.toLowerCase() === t);
+    if (byType) return byType;
+  }
+  return undefined;
 }
 
 const sides = ['S-South', 'S-East', 'S-North', 'S-West'];
@@ -155,8 +211,13 @@ export function addProject(config: {
   floors: number[];
   unitsPerFloor: Record<string, number>;
   importedItems?: ImportedItem[];   // ← from Excel/CSV
+  priorityProjectNumber?: string;   // AAAA — Priority project number
+  priorityCatalog?: PriorityCatalogRow[];
 }) {
   const id = config.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36);
+  const aaaa = (config.priorityProjectNumber || '').replace(/\D/g, '').padStart(4, '0').slice(-4);
+  const catalog = config.priorityCatalog || [];
+
   const project: Project = {
     id,
     name: config.name,
@@ -167,15 +228,28 @@ export function addProject(config: {
     completedItems: 0,
     sides: config.sides,
     floors: config.floors,
+    priorityProjectNumber: aaaa,
+  };
+
+  PRIORITY_CATALOG[id] = catalog;
+
+  const enrich = (it: ProjectItem) => {
+    const row = matchPriorityRow(catalog, it.unitName, it.type);
+    if (row) {
+      it.prioritySku = row.sku;
+      it.prioritySuffix = row.suffix;
+      it.priorityWeight = row.weight;
+    }
+    it.barcode = buildBarcode(aaaa, it.prioritySuffix, it.floor, it.unit);
+    return it;
   };
 
   let items: ProjectItem[];
 
   if (config.importedItems && config.importedItems.length > 0) {
-    // ── Build items from Excel rows ──────────────────────────────────────
-    items = config.importedItems.map((imp, idx) => ({
+    items = config.importedItems.map((imp, idx) => enrich({
       id: `${id}-${idx + 1}`,
-      barcode: imp.barcode || `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx + 1).padStart(5, '0')}`,
+      barcode: '',
       type: imp.type || 'חלון',
       floor: imp.floor ?? 1,
       unit: imp.unit ?? idx + 1,
@@ -195,7 +269,6 @@ export function addProject(config: {
       floorLabel: imp.floorLabel,
     }));
   } else {
-    // ── Auto-generate items from grid config ─────────────────────────────
     items = [];
     let idx = 0;
     for (const side of config.sides) {
@@ -203,9 +276,9 @@ export function addProject(config: {
       for (const floor of config.floors) {
         for (let unit = 1; unit <= units; unit++) {
           idx++;
-          items.push({
+          items.push(enrich({
             id: `${id}-${idx}`,
-            barcode: `ALM-${id.slice(0, 3).toUpperCase()}-${String(idx).padStart(5, '0')}`,
+            barcode: '',
             type: 'חלון',
             floor,
             unit,
@@ -214,7 +287,7 @@ export function addProject(config: {
             currentStation: null,
             stationHistory: [],
             qcApproved: false,
-          });
+          }));
         }
       }
     }
@@ -224,6 +297,50 @@ export function addProject(config: {
   PROJECT_ITEMS[id] = items;
   PROJECTS.push(project);
   return project;
+}
+
+/** Parse a Priority CSV/XLSX-derived rows-array into PriorityCatalogRow[].
+ * Expects a header row containing "מקט" (or "sku") and known columns. */
+export function parsePriorityRows(raw: unknown[][]): PriorityCatalogRow[] {
+  if (!raw || raw.length < 2) return [];
+  const norm = (v: unknown) => String(v ?? '').trim();
+  let headerIdx = -1;
+  for (let r = 0; r < Math.min(raw.length, 10); r++) {
+    const row = raw[r].map(c => norm(c).toLowerCase());
+    if (row.some(c => c === 'מקט' || c === 'sku' || c === 'מק"ט')) { headerIdx = r; break; }
+  }
+  if (headerIdx < 0) return [];
+  const headers = raw[headerIdx].map(c => norm(c).toLowerCase());
+  const find = (...keys: string[]) => headers.findIndex(h => keys.includes(h));
+  const iSku  = find('מקט', 'מק"ט', 'sku', 'catalog');
+  const iName = find('unit_name', 'unitname', 'שם יחידה');
+  const iType = find('type', 'סוג');
+  const iH    = find('height', 'גובה');
+  const iW    = find('width', 'רוחב', 'אורך');
+  const iWt   = find('weight', 'משקל');
+  const iCnt  = find('count', 'כמות');
+  const out: PriorityCatalogRow[] = [];
+  for (let r = headerIdx + 1; r < raw.length; r++) {
+    const row = raw[r];
+    if (!row) continue;
+    const sku = iSku >= 0 ? norm(row[iSku]) : '';
+    if (!sku) continue;
+    const m = sku.match(/(\d{1,4})\s*$/);
+    const suffix = (m ? m[1] : '0').padStart(4, '0').slice(-4);
+    const wt = iWt >= 0 ? Number(String(row[iWt]).replace(/,/g, '').trim()) : NaN;
+    const cnt = iCnt >= 0 ? Number(String(row[iCnt]).replace(/,/g, '').trim()) : NaN;
+    out.push({
+      sku,
+      suffix,
+      unitName: iName >= 0 ? norm(row[iName]) : '',
+      type: iType >= 0 ? norm(row[iType]) : '',
+      height: iH >= 0 ? Number(row[iH]) || undefined : undefined,
+      width: iW >= 0 ? Number(row[iW]) || undefined : undefined,
+      weight: Number.isFinite(wt) ? wt : undefined,
+      count: Number.isFinite(cnt) ? cnt : undefined,
+    });
+  }
+  return out;
 }
 
 export function getStationStats() {

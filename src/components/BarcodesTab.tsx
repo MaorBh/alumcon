@@ -179,10 +179,17 @@ interface LabelData {
 
 function buildLabel(item: ProjectItem, projectId: string, rows: LabelRow[]): LabelData {
   const row = findRowForItem(item, rows);
+  // Prefer the new Priority-based barcode stored on the item.
   const barcode =
-    row?.barcode ||
     item.barcode ||
+    row?.barcode ||
     generateBarcode(projectId, item);
+  const weight =
+    (item.priorityWeight != null ? String(item.priorityWeight) : "") ||
+    row?.weight ||
+    "";
+  // Show the Priority full SKU as the code line when available.
+  const code = item.prioritySku || row?.unitCode || "";
   return {
     item,
     barcode,
@@ -190,8 +197,8 @@ function buildLabel(item: ProjectItem, projectId: string, rows: LabelRow[]): Lab
     side: row?.side || item.side || "",
     floor: row?.floor ?? item.floor,
     unit: row?.unit ?? item.unit,
-    code: row?.unitCode || "",
-    weight: row?.weight || "",
+    code,
+    weight,
     date: row?.date || new Date().toLocaleDateString("he-IL"),
   };
 }

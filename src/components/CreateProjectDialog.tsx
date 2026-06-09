@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Upload, ChevronLeft, ChevronRight, FolderKanban, Building2, FileSpreadsheet, Check } from "lucide-react";
-import { STATIONS, type StationId, type ImportedItem } from "@/data/mockData";
+import { STATIONS, type StationId, type ImportedItem, type PriorityCatalogRow, parsePriorityRows } from "@/data/mockData";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -22,9 +22,12 @@ interface ProjectFormData {
   enabledStations: StationId[];
   file: File | null;
   parsedItems: ImportedItem[];
+  priorityProjectNumber: string;
+  priorityFile: File | null;
+  priorityCatalog: PriorityCatalogRow[];
 }
 
-const STEPS = ["פרטי פרויקט", "העלאת קובץ", "סיכום"];
+const STEPS = ["פרטי פרויקט", "Priority", "העלאת קובץ", "סיכום"];
 
 interface Props {
   open: boolean;
@@ -134,7 +137,7 @@ async function parseExcelFile(file: File): Promise<ImportedItem[]> {
 export default function CreateProjectDialog({ open, onOpenChange, onProjectCreated }: Props) {
   const [step, setStep] = useState(0);
   const [parsing, setParsing] = useState(false);
-  const [form, setForm] = useState<ProjectFormData>({
+  const initialForm: ProjectFormData = {
     name: "",
     description: "",
     sides: [...ALL_SIDES],
@@ -144,25 +147,20 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     enabledStations: STATIONS.map(s => s.id),
     file: null,
     parsedItems: [],
-  });
+    priorityProjectNumber: "",
+    priorityFile: null,
+    priorityCatalog: [],
+  };
+  const [form, setForm] = useState<ProjectFormData>(initialForm);
 
   const reset = () => {
     setStep(0);
-    setForm({
-      name: "",
-      description: "",
-      sides: [...ALL_SIDES],
-      floorFrom: 1,
-      floorTo: 10,
-      unitsPerFloor: { "S-South": 10, "S-East": 8, "S-North": 8, "S-West": 10 },
-      enabledStations: STATIONS.map(s => s.id),
-      file: null,
-      parsedItems: [],
-    });
+    setForm(initialForm);
   };
 
   const canNext = () => {
     if (step === 0) return form.name.trim().length > 0;
+    if (step === 1) return form.priorityProjectNumber.trim().length > 0;
     return true;
   };
 
@@ -189,6 +187,23 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
       toast.error("שגיאה בקריאת הקובץ");
     } finally {
       setParsing(false);
+    }
+  };
+
+  const handlePriorityFile = async (f: File | null) => {
+    setForm(prev => ({ ...prev, priorityFile: f, priorityCatalog: [] }));
+    if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      const rows = parsePriorityRows(raw);
+      setForm(prev => ({ ...prev, priorityCatalog: rows }));
+      if (rows.length > 0) toast.success(`נטענו ${rows.length} מק"טים מקטלוג Priority`);
+      else toast.warning('לא זוהו מק"טים — ודא שיש עמודה "מקט" בקובץ');
+    } catch {
+      toast.error("שגיאה בקריאת קובץ Priority");
     }
   };
 
@@ -261,8 +276,67 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 1: File upload */}
+        {/* Step 1: Priority */}
         {step === 1 && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>מספר פרויקט בפריוריטי *</Label>
+              <Input
+                value={form.priorityProjectNumber}
+                onChange={e => setForm(f => ({ ...f, priorityProjectNumber: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                placeholder="לדוגמה: 0109"
+                inputMode="numeric"
+              />
+              <p className="text-xs text-muted-foreground">
+                4 ספרות (AAAA) — זה החלק הראשון של הברקוד <span className="font-mono">AAAA-BBBB-CC-DD</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <FileSpreadsheet className="w-4 h-4" /> קטלוג מק"טים מ-Priority (CSV / Excel)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                העלה קובץ עם עמודות <strong>מקט</strong>, <strong>Unit_NAME</strong>, <strong>TYPE</strong>, <strong>Weight</strong>.
+                4 הספרות האחרונות של המק"ט יהפכו ל-BBBB בברקוד.
+              </p>
+              <label
+                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                  form.priorityFile ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <Upload className={`w-7 h-7 ${form.priorityFile ? "text-primary" : "text-muted-foreground"}`} />
+                {form.priorityFile ? (
+                  <div className="text-center">
+                    <p className="text-sm font-medium">{form.priorityFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(form.priorityFile.size / 1024).toFixed(1)} KB</p>
+                    {form.priorityCatalog.length > 0 ? (
+                      <p className="text-xs text-green-600 mt-1 font-medium">
+                        ✓ {form.priorityCatalog.length} מק"טים זוהו
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-500 mt-1">⚠ לא זוהו מק"טים</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">לחץ לבחירת קובץ Priority</p>
+                    <p className="text-xs text-muted-foreground">.csv, .xlsx, .xls</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={e => handlePriorityFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: File upload */}
+        {step === 2 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-1.5">
               <FileSpreadsheet className="w-4 h-4" /> העלאת קובץ פריטים (Excel / CSV)
@@ -312,8 +386,8 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
           </div>
         )}
 
-        {/* Step 2: Summary */}
-        {step === 2 && (
+        {/* Step 3: Summary */}
+        {step === 3 && (
           <div className="space-y-4">
             <div className="glass-card p-4 space-y-3">
               <div className="flex justify-between">
@@ -327,7 +401,19 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">קובץ</span>
+                <span className="text-sm text-muted-foreground">מספר פרויקט Priority</span>
+                <span className="text-sm font-mono font-bold text-primary">
+                  {form.priorityProjectNumber.padStart(4, "0")}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">קטלוג Priority</span>
+                <span className="text-sm">
+                  {form.priorityCatalog.length > 0 ? `${form.priorityCatalog.length} מק"טים` : "לא הועלה"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">קובץ פריטים</span>
                 <span className="text-sm">{form.file ? form.file.name : "לא הועלה"}</span>
               </div>
               {form.parsedItems.length > 0 && (
@@ -336,6 +422,9 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
                   <span className="text-sm font-inter font-bold text-primary">{form.parsedItems.length}</span>
                 </div>
               )}
+              <div className="pt-2 border-t border-border/60 text-xs text-muted-foreground">
+                דוגמת ברקוד: <span className="font-mono">{form.priorityProjectNumber.padStart(4, "0")}-XXXX-CC-DD</span>
+              </div>
             </div>
           </div>
         )}
