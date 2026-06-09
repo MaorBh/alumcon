@@ -1,67 +1,64 @@
-# הפקת ברקודים — תהליך חדש
-
 ## מטרה
-להחליף את המסך הקיים ב-Wizard פשוט בן 3 שלבים. ההדפסה תמיד מוגבלת לקבוצה אחת: **קומה אחת**, **סטריפ אחד**, **יחידה בודדת** או **מספר יחידות נבחרות ידנית**. אין הדפסה של חזית שלמה או של הבניין כולו.
+לקשר בין נתוני Priority (מספר פרויקט + קטלוג מק"טים) לבין פריטי הפרויקט במערכת, ולייצר ברקודים במבנה אחיד `AAAA-BBBB-CC-DD`.
 
-## תהליך המשתמש
-
-### שלב 1 — בחירת היקף
-- **בחירת חזית** (Side): כפתורי-קלפים לכל החזיתות בפרויקט.
-- **מצב בחירה** (לאחר בחירת חזית):
-  1. **קומה** — בחירת קומה אחת → כל היחידות באותה קומה (שורה אופקית).
-  2. **סטריפ** — בחירת מספר יחידה (Unit column) → כל הקומות באותו סטריפ (מלמטה למעלה).
-  3. **יחידה בודדת** — לחיצה על תא בודד בגריד.
-  4. **מספר יחידות** — בחירה מרובה ידנית בגריד (Ctrl/Shift או צ׳קבוקס לכל תא).
-- תצוגה ויזואלית: גריד דומה ל-Project Grid, התאים הנבחרים מודגשים.
-
-### שלב 2 — תצוגה מקדימה
-- כותרת: סיכום הבחירה ("חזית S-North · קומה 24 · 8 יחידות").
-- **תצוגה מקדימה של מדבקה אחת** בגודל אמיתי (1:1), כולל ברקוד, משקל, קוד, תאריך — בדיוק כמו בהדפסה.
-- ניווט "הקודמת/הבאה" לדפדוף בין המדבקות שייוצרו (לבדיקה ויזואלית).
-- כפתורי "חזרה" ו"שלח להדפסה".
-
-### שלב 3 — הדפסה
-- פתיחת חלון הדפסה כפי שקיים היום (`buildPrintHtml`), אך רק עם היחידות הנבחרות.
-
-## פרטים טכניים
-
-### קבצים
-- **`src/components/BarcodesTab.tsx`** — שכתוב מלא. החלפת המסך הנוכחי ב-Wizard.
-- ייתכן ופיצול ל:
-  - `BarcodesTab.tsx` — קונטיינר + ניהול state של השלבים.
-  - `BarcodeSelectionStep.tsx` — שלב 1 (גריד + מצבי בחירה).
-  - `BarcodePreviewStep.tsx` — שלב 2 (תצוגה מקדימה).
-- שמירה על `buildPrintHtml`, `generateBarcode`, `matchItem`, `parseLabelExcel` (הלוגיקה נשארת).
-
-### State
-```ts
-type SelectionMode = 'floor' | 'strip' | 'single' | 'multi';
-type WizardState = {
-  step: 1 | 2;
-  side?: string;
-  mode?: SelectionMode;
-  selectedItemIds: string[]; // התוצאה הסופית של הבחירה
-};
+## מבנה הברקוד
 ```
+AAAA - BBBB - CC - DD
+ │      │     │    └─ מיקום (יחידה) – 2 ספרות, padded
+ │      │     └────── קומה – 2 ספרות, padded
+ │      └──────────── סיומת מק"ט פריוריטי (4 ספרות אחרונות של "5-0-0001" → 0001)
+ └─────────────────── מספר פרויקט בפריוריטי (4 ספרות, padded)
+```
+דוגמה: פרויקט 109, מק"ט `5-0-0042`, קומה 3, יחידה 7 → `0109-0042-03-07`
 
-### לוגיקת בחירה
-- `floor`: `items.filter(i => i.side === side && i.floor === floor)` ממוין לפי `unit`.
-- `strip`: `items.filter(i => i.side === side && i.unit === unit)` ממוין לפי `floor` יורד (מלמטה למעלה).
-- `single` / `multi`: בחירה ישירה לפי `id`.
+## שינויים באשף יצירת פרויקט (`CreateProjectDialog.tsx`)
+מוסיפים שלב חדש "Priority" בין "פרטי פרויקט" ל"העלאת קובץ פריטים".
+4 שלבים במקום 3:
+1. פרטי פרויקט (קיים)
+2. **Priority (חדש)** – שדה "מספר פרויקט בפריוריטי" (AAAA) + העלאת קובץ Priority (CSV/XLSX) עם עמודות `מקט`, `Unit_NAME`, `TYPE`, `HEIGHT`, `WIDTH`, `Weight`, `Count`
+3. העלאת קובץ פריטים/BIM (קיים)
+4. סיכום (קיים, כעת מציג גם את נתוני Priority)
 
-### קובץ Excel
-- העלאת ה-Excel (עם המשקל/קוד/תאריך) נשארת כצעד אופציונלי לפני שלב 1 — לשם העשרת נתוני המדבקה. אם לא הועלה, המדבקות יודפסו עם נתוני הפריט בלבד (ללא משקל).
-- ניתן לבחור: "התחל ללא קובץ" או "העלה קובץ נתונים".
+### לוגיקת השלב החדש
+- ולידציה: `priorityProjectNumber` חובה, מספרי, מומר ל-4 ספרות עם padding
+- פרסור הקובץ: זיהוי שורת כותרות בעלת `מקט`, חילוץ 4 הספרות האחרונות של כל מק"ט (regex `/(\d{4})$/`) → `prioritySuffix`
+- שמירת מפה `catalogByType: Map<TYPE+Unit_NAME, {suffix, weight, count}>` להעשרת הפריטים
 
-### תצוגה מקדימה (Preview)
-- ייעוד ה-HTML של מדבקה בודדת ב-`<iframe srcdoc>` או ב-div מעוצב זהה למדבקת ההדפסה (105mm × 40mm).
-- שימוש ב-`JsBarcode` ישירות (לא דרך CDN) על אלמנט SVG פנימי לתצוגה חיה.
+### שיוך לפריטים
+בעת יצירת הפרויקט, עבור כל `ProjectItem`:
+- חיפוש התאמה בקטלוג Priority לפי `type` (ואם זמין `unitName`)
+- שמירת `prioritySuffix` ו-`priorityWeight` על הפריט
+- חישוב ברקוד סופי: `${AAAA}-${BBBB}-${pad(floor,2)}-${pad(unit,2)}`
+- פריטים ללא התאמה בקטלוג → BBBB = `0000` + סימון אזהרה בסיכום
 
-### ולידציה
-- כפתור "המשך" בשלב 1 מנוטרל אם `selectedItemIds.length === 0`.
-- "הדפסה" בשלב 2 מנוטרל אם אין יחידות.
+## שינויים במודל הנתונים (`mockData.ts`)
+- `Project`: הוספת `priorityProjectNumber?: string` (4 ספרות)
+- `ProjectItem`: הוספת `prioritySuffix?: string`, `priorityWeight?: number`
+- `ImportedItem`: ללא שינוי
+- חדש: `PriorityCatalogRow { sku: string; suffix: string; unitName: string; type: string; weight: number; count: number; }`
+- חדש: `PRIORITY_CATALOG: Record<projectId, PriorityCatalogRow[]>`
+- `addProject(...)` מקבל `priorityProjectNumber` ו-`priorityCatalog`, ובונה ברקודים חדשים לכל פריט
 
-## מה לא משתנה
-- מבנה נתוני `ProjectItem`.
-- פורמט המדבקה ופלט ההדפסה.
-- אינטגרציה עם `ProjectDetail.tsx` (אותו prop interface).
+## שינויים ב-`BarcodesTab.tsx`
+- המדבקה תציג את הברקוד החדש במקום ה-`barcode` הישן
+- ה-vertical barcode (`*360*` המשקל) ישתמש ב-`priorityWeight` כשזמין
+- ה-horizontal barcode = הברקוד החדש `AAAA-BBBB-CC-DD`
+- שדה "מק"ט/קוד" במדבקה יציג את מק"ט Priority המלא (`5-0-0042`)
+- אם פריט חסר התאמת Priority → תווית אזהרה במסך התצוגה המקדימה, חסימת הדפסה
+
+## פרסור Priority CSV/XLSX
+פונקציית `parsePriorityFile(file)`:
+- תומכת ב-`.csv`, `.xlsx`, `.xls` (משתמש ב-`XLSX.read` הקיים)
+- מדלגת על שורת הכותרת העליונה ("Window Schedule…") ומאתרת את שורת `מקט,Unit_NAME,TYPE…`
+- מחזירה מערך `PriorityCatalogRow`
+- אזהרת toast כשמספר השורות = 0 או אין עמודת `מקט`
+
+## קבצים שיתעדכנו
+- `src/components/CreateProjectDialog.tsx` – שלב חדש + state
+- `src/data/mockData.ts` – שדות חדשים על Project/Item, `addProject` עם בניית ברקוד
+- `src/components/BarcodesTab.tsx` – שימוש בברקוד החדש במדבקה ובהדפסה
+- `src/pages/Projects.tsx` – העברת `priorityProjectNumber` ו-`priorityCatalog` ל-`addProject`
+
+## הערות
+- לא נדרש שינוי לסריקה/Stations – הברקוד החדש נשמר ב-`item.barcode` ולכן כל המסכים שמסתמכים עליו ממשיכים לעבוד.
+- פרויקטים קיימים (mock) יקבלו `priorityProjectNumber = "0000"` כדי לא לשבור תצוגות.
