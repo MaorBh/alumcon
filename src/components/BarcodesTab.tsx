@@ -244,7 +244,7 @@ const LABEL_CSS = `
   .toolbar button { background: #111; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
   .label { display: flex; flex-direction: row; width: 105mm; height: 40mm; background: #fff; border: 1px solid #000;
     margin: 0 auto 6mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid; direction: rtl; }
-  .weight-side { width: 40%; border-left: 1.2px solid #000; display: flex; align-items: stretch; padding: 0; position: relative; }
+  .weight-side { width: 40%; border-right: 1.5px solid #000; display: flex; align-items: stretch; padding: 0; position: relative; }
   .info-side { width: 60%; display: flex; align-items: stretch; padding: 0; position: relative; }
   .info-inner { flex: 1; padding: 2mm 3mm 1.5mm 3mm; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
   .bar-edge-wrap { width: 7mm; height: 40mm; position: relative; overflow: hidden; flex-shrink: 0; }
