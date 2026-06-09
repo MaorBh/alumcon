@@ -224,15 +224,14 @@ function labelInnerHtml(l: LabelData): string {
           <div class="date">${l.date}</div>
         </div>
       </div>
-      <div class="bar-edge-wrap right"><svg class="bar-vert"></svg></div>
     </div>
     <div class="weight-side">
-      <div class="bar-edge-wrap left"><svg class="bar-vert"></svg></div>
       <div class="weight-text">
         <div class="wlabel">משקל</div>
         <div class="wvalue">${weightValue}</div>
         <div class="wunit">Kg</div>
       </div>
+      <div class="bar-edge-wrap"><svg class="bar-vert"></svg></div>
     </div>
   `;
 }
