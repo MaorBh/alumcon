@@ -137,7 +137,7 @@ async function parseExcelFile(file: File): Promise<ImportedItem[]> {
 export default function CreateProjectDialog({ open, onOpenChange, onProjectCreated }: Props) {
   const [step, setStep] = useState(0);
   const [parsing, setParsing] = useState(false);
-  const [form, setForm] = useState<ProjectFormData>({
+  const initialForm: ProjectFormData = {
     name: "",
     description: "",
     sides: [...ALL_SIDES],
@@ -147,21 +147,15 @@ export default function CreateProjectDialog({ open, onOpenChange, onProjectCreat
     enabledStations: STATIONS.map(s => s.id),
     file: null,
     parsedItems: [],
-  });
+    priorityProjectNumber: "",
+    priorityFile: null,
+    priorityCatalog: [],
+  };
+  const [form, setForm] = useState<ProjectFormData>(initialForm);
 
   const reset = () => {
     setStep(0);
-    setForm({
-      name: "",
-      description: "",
-      sides: [...ALL_SIDES],
-      floorFrom: 1,
-      floorTo: 10,
-      unitsPerFloor: { "S-South": 10, "S-East": 8, "S-North": 8, "S-West": 10 },
-      enabledStations: STATIONS.map(s => s.id),
-      file: null,
-      parsedItems: [],
-    });
+    setForm(initialForm);
   };
 
   const canNext = () => {
