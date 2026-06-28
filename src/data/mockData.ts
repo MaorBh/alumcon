@@ -228,13 +228,36 @@ export function persistUserProjects() {
     const userProjects = PROJECTS.filter(
       p => p.id !== 'south-tower' && p.id !== 'north-tower'
     );
+    if (userProjects.length === 0) return;
     const userItems: Record<string, ProjectItem[]> = {};
-    userProjects.forEach(p => { userItems[p.id] = PROJECT_ITEMS[p.id] || []; });
-    localStorage.setItem(
-      SAVED_PROJECTS_KEY,
-      JSON.stringify({ projects: userProjects, items: userItems })
-    );
-  } catch { /* ignore quota errors */ }
+    userProjects.forEach(p => {
+      userItems[p.id] = (PROJECT_ITEMS[p.id] || []).map(item => ({
+        id: item.id,
+        barcode: item.barcode,
+        type: item.type,
+        floor: item.floor,
+        unit: item.unit,
+        side: item.side,
+        status: item.status,
+        currentStation: item.currentStation,
+        stationHistory: item.stationHistory || [],
+        qcApproved: item.qcApproved,
+        ifcGuid: item.ifcGuid,
+        unitName: item.unitName,
+        width: item.width,
+        height: item.height,
+        unitArea: item.unitArea,
+        floorLabel: item.floorLabel,
+        prioritySku: item.prioritySku,
+        prioritySuffix: item.prioritySuffix,
+        priorityWeight: item.priorityWeight,
+      }));
+    });
+    const payload = JSON.stringify({ projects: userProjects, items: userItems });
+    localStorage.setItem(SAVED_PROJECTS_KEY, payload);
+  } catch (e) {
+    console.error('[alumcon] localStorage save failed:', e);
+  }
 }
 
 export function addProject(config: {
