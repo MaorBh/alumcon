@@ -1,7 +1,7 @@
 // In-memory log of scans performed via the mobile scanner app.
 // Mirrors the project's mock-data approach.
 
-import { ProjectItem, PROJECT_ITEMS, PROJECTS, STATIONS, StationId, updateItemStatus } from "@/data/mockData";
+import { ProjectItem, PROJECT_ITEMS, PROJECTS, STATIONS, StationId, updateItemStatus, persistUserProjects } from "@/data/mockData";
 
 export type ScanAction = "station_pass" | "station_reject" | "qc_pass" | "qc_reject" | "qc_final";
 
@@ -79,6 +79,90 @@ export function findItemByBarcode(barcode: string): { item: ProjectItem; project
   return null;
 }
 
+// Async version — checks real database first, falls back to in-memory mockData
+export async function findItemByBarcodeAsync(
+  barcode: string
+): Promise<{ item: ProjectItem; projectId: string; fromDb?: boolean } | null> {
+  const code = barcode.trim();
+  if (!code) return null;
+
+  // Try real backend first
+  const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:3001";
+  try {
+    const res = await fetch(
+      `${API_URL}/api/projects/items/search?barcode=${encodeURIComponent(code)}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (res.ok) {
+      const raw = await res.json();
+      // Map DB item shape to frontend ProjectItem shape
+      const dbItem: ProjectItem = {
+        id: raw.id,
+        barcode: raw.barcode,
+        type: raw.type || "חלון",
+        floor: raw.floor,
+        unit: raw.unit,
+        side: raw.side || "",
+        status: (raw.status || "PENDING").toLowerCase() as any,
+        currentStation: raw.currentStation as any,
+        stationHistory: (raw.history || []).map((h: any) => ({
+          station: h.station as any,
+          timestamp: h.timestamp,
+          result: h.result as "pass" | "fail",
+          notes: h.notes,
+        })),
+        qcApproved: raw.qcApproved || false,
+        ifcGuid: raw.ifcGuid,
+        floorLabel: raw.floorLabel,
+        unitName: raw.unitName,
+      };
+      return {
+        item: dbItem,
+        projectId: raw.project?.id || raw.projectId,
+        fromDb: true,
+      };
+    }
+  } catch {
+    // Backend unavailable — fall through to mockData
+  }
+
+  // Fallback to in-memory mockData
+  const local = findItemByBarcode(barcode);
+  return local;
+}
+
+// Async status update — writes to real DB (falls back to in-memory only)
+export async function updateItemStatusAsync(args: {
+  barcode: string;
+  status: string;
+  station?: string;
+  username?: string;
+  notes?: string;
+}): Promise<void> {
+  const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:3001";
+  try {
+    const res = await fetch(`${API_URL}/api/projects/items/scan-update`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        barcode: args.barcode,
+        status: args.status.toUpperCase(),
+        station: args.station,
+        username: args.username,
+        notes: args.notes,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    // Re-throw so caller can handle
+    throw err;
+  }
+}
+
 export function getProjectName(projectId: string): string {
   return PROJECTS.find((p) => p.id === projectId)?.name || projectId;
 }
@@ -130,6 +214,7 @@ export function recordStationScan(args: {
     photos,
     timestamp: new Date().toISOString(),
   });
+  persistUserProjects();
 }
 
 export function recordQcScan(args: {

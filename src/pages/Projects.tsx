@@ -5,21 +5,58 @@ import { FolderKanban, Calendar, ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CreateProjectDialog from "@/components/CreateProjectDialog";
 
+const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:3001";
+
+async function saveProjectToDb(data: any, items: any[]) {
+  const token = localStorage.getItem("auth-token");
+  if (!token) return; // backend not available in Lovable/local-only mode
+
+  try {
+    // 1. Create project
+    const pRes = await fetch(`${API_URL}/api/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description || "",
+        sides: data.sides,
+        floors: Array.from({ length: data.floorTo - data.floorFrom + 1 }, (_: any, i: number) => data.floorFrom + i),
+      }),
+    });
+    if (!pRes.ok) return;
+    const project = await pRes.json();
+
+    // 2. Import items (if any)
+    if (items.length > 0) {
+      await fetch(`${API_URL}/api/projects/${project.id}/items/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items }),
+      });
+    }
+  } catch {
+    // Backend offline — UI still works with in-memory data
+  }
+}
+
 export default function Projects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [, forceUpdate] = useState(0);
 
   const handleProjectCreated = (data: any) => {
+    const floors = Array.from({ length: data.floorTo - data.floorFrom + 1 }, (_: any, i: number) => data.floorFrom + i);
     addProject({
       name: data.name,
       description: data.description,
       sides: data.sides,
-      floors: Array.from({ length: data.floorTo - data.floorFrom + 1 }, (_, i) => data.floorFrom + i),
+      floors,
       unitsPerFloor: data.unitsPerFloor,
       importedItems: data.parsedItems?.length > 0 ? data.parsedItems : undefined,
       priorityProjectNumber: data.priorityProjectNumber,
       priorityCatalog: data.priorityCatalog,
     });
+    // Also persist to backend DB (if auth token available from login)
+    saveProjectToDb(data, data.parsedItems || []);
     forceUpdate(n => n + 1);
   };
 

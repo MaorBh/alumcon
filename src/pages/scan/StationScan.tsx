@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, XCircle, Send, RotateCcw } from "lucide-react";
+import { CheckCircle2, XCircle, Send, RotateCcw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ScanLayout from "@/scan/ScanLayout";
 import BarcodeInput from "@/scan/BarcodeInput";
@@ -8,19 +8,27 @@ import ItemInfoCard from "@/scan/ItemInfoCard";
 import ExistingPhotos from "@/scan/ExistingPhotos";
 import PhotoCapture from "@/scan/PhotoCapture";
 import { getCurrentUser } from "@/scan/scanAuth";
-import { findItemByBarcode, getStationName, recordStationScan } from "@/scan/scanData";
+import {
+  findItemByBarcodeAsync,
+  getStationName,
+  recordStationScan,
+  updateItemStatusAsync,
+} from "@/scan/scanData";
 import { ProjectItem } from "@/data/mockData";
 
 export default function StationScan() {
   const navigate = useNavigate();
   const user = getCurrentUser();
 
-  const [barcode, setBarcode] = useState("");
-  const [item, setItem] = useState<ProjectItem | null>(null);
-  const [projectId, setProjectId] = useState<string>("");
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [decision, setDecision] = useState<"pass" | "fail" | null>(null);
-  const [notes, setNotes] = useState("");
+  const [barcode,    setBarcode]    = useState("");
+  const [item,       setItem]       = useState<ProjectItem | null>(null);
+  const [projectId,  setProjectId]  = useState<string>("");
+  const [fromDb,     setFromDb]     = useState(false);
+  const [photos,     setPhotos]     = useState<string[]>([]);
+  const [decision,   setDecision]   = useState<"pass" | "fail" | null>(null);
+  const [notes,      setNotes]      = useState("");
+  const [searching,  setSearching]  = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== "station" || !user.stationId) {
@@ -34,39 +42,68 @@ export default function StationScan() {
     setBarcode("");
     setItem(null);
     setProjectId("");
+    setFromDb(false);
     setPhotos([]);
     setDecision(null);
     setNotes("");
   };
 
-  const handleScan = () => {
-    const found = findItemByBarcode(barcode);
-    if (!found) {
-      toast.error("ברקוד לא נמצא במערכת");
-      return;
+  const handleScan = async () => {
+    if (!barcode.trim()) return;
+    setSearching(true);
+    try {
+      const found = await findItemByBarcodeAsync(barcode);
+      if (!found) {
+        toast.error("ברקוד לא נמצא במערכת");
+        return;
+      }
+      setItem(found.item);
+      setProjectId(found.projectId);
+      setFromDb(found.fromDb ?? false);
+      setDecision("pass");
+    } catch {
+      toast.error("שגיאה בחיפוש ברקוד");
+    } finally {
+      setSearching(false);
     }
-    setItem(found.item);
-    setProjectId(found.projectId);
-    setDecision("pass"); // default
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!item || !decision) return;
     if (decision === "fail" && photos.length === 0) {
       toast.error("בפסילה חובה לצרף לפחות תמונה אחת");
       return;
     }
-    recordStationScan({
-      item,
-      projectId,
-      username: user.username,
-      stationId: user.stationId!,
-      passed: decision === "pass",
-      photos,
-      notes: notes.trim() || undefined,
-    });
-    toast.success(decision === "pass" ? "אושר ונשלח" : "נפסל ונשלח");
-    reset();
+    setSubmitting(true);
+    try {
+      if (fromDb) {
+        // Write to real database
+        await updateItemStatusAsync({
+          barcode: item.barcode,
+          status: decision === "pass" ? "IN_PROGRESS" : "REJECTED",
+          station: user.stationId!,
+          username: user.username,
+          notes: notes.trim() || undefined,
+        });
+      } else {
+        // Fallback: in-memory only
+        recordStationScan({
+          item,
+          projectId,
+          username: user.username,
+          stationId: user.stationId!,
+          passed: decision === "pass",
+          photos,
+          notes: notes.trim() || undefined,
+        });
+      }
+      toast.success(decision === "pass" ? "אושר ונשלח" : "נפסל ונשלח");
+      reset();
+    } catch (err: any) {
+      toast.error(err.message || "שגיאה בשמירה");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -82,10 +119,11 @@ export default function StationScan() {
         {!item && (
           <button
             onClick={handleScan}
-            disabled={!barcode.trim()}
-            className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition"
+            disabled={!barcode.trim() || searching}
+            className="w-full h-11 rounded-lg bg-primary text-primary-foreground font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition flex items-center justify-center gap-2"
           >
-            חפש פריט
+            {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {searching ? "מחפש..." : "חפש פריט"}
           </button>
         )}
 
@@ -147,10 +185,11 @@ export default function StationScan() {
             <div className="grid grid-cols-[1fr_auto] gap-2 sticky bottom-2">
               <button
                 onClick={handleSubmit}
-                className="h-14 rounded-xl bg-primary text-primary-foreground font-bold text-base flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition shadow-lg shadow-primary/30"
+                disabled={submitting}
+                className="h-14 rounded-xl bg-primary text-primary-foreground font-bold text-base flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-[0.98] transition shadow-lg shadow-primary/30 disabled:opacity-50"
               >
-                <Send className="w-5 h-5" />
-                שלח
+                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {submitting ? "שולח..." : "שלח"}
               </button>
               <button
                 onClick={reset}

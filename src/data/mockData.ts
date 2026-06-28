@@ -204,6 +204,39 @@ PROJECTS.forEach(p => {
   p.completedItems = items.filter(i => i.status === 'completed').length;
 });
 
+const SAVED_PROJECTS_KEY = 'alumcon-saved-projects';
+
+// Load persisted user projects from localStorage (survives page refresh on same device)
+try {
+  const saved = localStorage.getItem(SAVED_PROJECTS_KEY);
+  if (saved) {
+    const { projects, items } = JSON.parse(saved) as {
+      projects: Project[];
+      items: Record<string, ProjectItem[]>;
+    };
+    projects.forEach(p => {
+      if (!PROJECTS.find(x => x.id === p.id)) {
+        PROJECTS.push(p);
+        PROJECT_ITEMS[p.id] = items[p.id] || [];
+      }
+    });
+  }
+} catch { /* ignore */ }
+
+export function persistUserProjects() {
+  try {
+    const userProjects = PROJECTS.filter(
+      p => p.id !== 'south-tower' && p.id !== 'north-tower'
+    );
+    const userItems: Record<string, ProjectItem[]> = {};
+    userProjects.forEach(p => { userItems[p.id] = PROJECT_ITEMS[p.id] || []; });
+    localStorage.setItem(
+      SAVED_PROJECTS_KEY,
+      JSON.stringify({ projects: userProjects, items: userItems })
+    );
+  } catch { /* ignore quota errors */ }
+}
+
 export function addProject(config: {
   name: string;
   description: string;
@@ -296,6 +329,7 @@ export function addProject(config: {
   project.totalItems = items.length;
   PROJECT_ITEMS[id] = items;
   PROJECTS.push(project);
+  persistUserProjects();
   return project;
 }
 
@@ -366,6 +400,7 @@ export function updateItemStatus(projectId: string, itemId: string, newStatus: I
   if (project) {
     project.completedItems = items.filter(i => i.status === 'completed').length;
   }
+  persistUserProjects();
 }
 
 export type QcStatus = 'not_checked' | 'approved' | 'failed';

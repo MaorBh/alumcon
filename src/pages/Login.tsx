@@ -18,12 +18,28 @@ export default function Login() {
     navigate(from, { replace: true });
   }
 
-  const onSubmit = (e: React.FormEvent) => {
+  const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:3001";
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const u = login(username, password);
     if (!u) {
       toast.error("שם משתמש או סיסמה שגויים");
       return;
+    }
+    // Silently get a backend JWT for API access (local dev bridge)
+    if (u.role === "admin") {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "admin@alumcon.com", password: "Alumcon2024!" }),
+        });
+        if (res.ok) {
+          const { token } = await res.json();
+          localStorage.setItem("auth-token", token);
+        }
+      } catch { /* backend offline — local-only mode */ }
     }
     toast.success(`ברוך הבא, ${u.displayName} (${ROLE_LABELS[u.role]})`);
     const from = (location.state as { from?: string } | null)?.from || "/";

@@ -8,7 +8,7 @@ import ItemInfoCard from "@/scan/ItemInfoCard";
 import ExistingPhotos from "@/scan/ExistingPhotos";
 import PhotoCapture from "@/scan/PhotoCapture";
 import { getCurrentUser } from "@/scan/scanAuth";
-import { findItemByBarcode, recordQcScan } from "@/scan/scanData";
+import { findItemByBarcodeAsync, recordQcScan } from "@/scan/scanData";
 import { ProjectItem } from "@/data/mockData";
 
 type QcDecision = "qc_pass" | "qc_reject" | "qc_final";
@@ -68,14 +68,19 @@ export default function QcScan() {
     setNotes("");
   };
 
-  const handleScan = () => {
-    const found = findItemByBarcode(barcode);
-    if (!found) {
-      toast.error("ברקוד לא נמצא במערכת");
-      return;
+  const handleScan = async () => {
+    if (!barcode.trim()) return;
+    try {
+      const found = await findItemByBarcodeAsync(barcode);
+      if (!found) {
+        toast.error("ברקוד לא נמצא במערכת");
+        return;
+      }
+      setItem(found.item);
+      setProjectId(found.projectId);
+    } catch {
+      toast.error("שגיאה בחיפוש ברקוד");
     }
-    setItem(found.item);
-    setProjectId(found.projectId);
   };
 
   const handleSubmit = () => {
